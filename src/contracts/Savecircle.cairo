@@ -161,11 +161,8 @@ pub mod SaveCircle {
             self.pausable.unpause();
         }
 
-        #[external(v0)]
-        fn add_admin(ref self: ContractState, new_admin: ContractAddress) {
-            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
-            self.accesscontrol._grant_role(DEFAULT_ADMIN_ROLE, new_admin);
-        }
+      
+     
     }
 
     #[abi(embed_v0)]
@@ -178,6 +175,14 @@ pub mod SaveCircle {
 
     #[abi(embed_v0)]
     impl SavecircleImpl of Isavecircle<ContractState> {
+
+   
+        fn add_admin(ref self: ContractState, new_admin: ContractAddress) -> bool {
+            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
+            self.accesscontrol._grant_role(DEFAULT_ADMIN_ROLE, new_admin);
+            return true;
+        }
+        
         fn register_user(ref self: ContractState, name: ByteArray, avatar: ByteArray) -> bool {
             let caller = get_caller_address();
             let current_time = get_block_timestamp();
@@ -303,6 +308,9 @@ pub mod SaveCircle {
             let group_id = self.next_group_id.read();
             let current_time = get_block_timestamp();
             let contract_address = contract_address_const::<0x0>();
+
+            // Only admin can create public groups
+            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
 
             let user_entry = self.user_profiles.entry(caller);
             let mut existing_profile = user_entry.read();
@@ -869,12 +877,8 @@ pub mod SaveCircle {
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
             assert(group_info.state == GroupState::Active, Errors::GROUP_MUST_BE_ACTIVE);
 
-            // Only group creator or admin can distribute payouts
-            assert(
-                group_info.creator == caller
-                    || self.accesscontrol.has_role(DEFAULT_ADMIN_ROLE, caller),
-                Errors::ONLY_CREATOR_CAN_DISTRIBUTE,
-            );
+            // Only admin can distribute payouts
+            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
 
             let total_contributions = self._calculate_total_contributions(group_id);
             assert(total_contributions > 0, Errors::NO_CONTRIBUTIONS_TO_DISTRIBUTE);
@@ -1225,6 +1229,95 @@ pub mod SaveCircle {
             } else {
                 0
             }
+        }
+
+        fn remove_member_from_group(
+            ref self: ContractState, group_id: u256, member_address: ContractAddress,
+        ) -> bool {
+            let caller = get_caller_address();
+
+            // Check if contract is paused
+            self.pausable.assert_not_paused();
+
+            // Only admin or group creator can remove members
+            let group_info = self.groups.read(group_id);
+            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+            
+            // Only allow removal before group is activated
+            assert(group_info.state == GroupState::Created, 'Can only remove before active');
+            
+            // Check permissions: admin or group creator
+            assert(
+                self.accesscontrol.has_role(DEFAULT_ADMIN_ROLE, caller) || group_info.creator == caller,
+                'Only admin or creator'
+            );
+
+            // Check if user is actually a member
+            let member_index = self.user_joined_groups.read((member_address, group_id));
+            let group_member = self.group_members.read((group_id, member_index));
+            assert(group_member.user == member_address && group_member.is_active, 'User not a member');
+
+            // Deactivate the member
+            let mut updated_member = group_member;
+            updated_member.is_active = false;
+            self.group_members.write((group_id, member_index), updated_member);
+
+            // Update group member count
+            let mut updated_group_info = group_info;
+            updated_group_info.members -= 1;
+            self.groups.write(group_id, updated_group_info);
+
+            // Remove from user's joined groups mapping
+            self.user_joined_groups.write((member_address, group_id), 0);
+
+            // Update user's group count
+            let mut user_profile = self.user_profiles.read(member_address);
+            if user_profile.total_joined_groups > 0 {
+                user_profile.total_joined_groups -= 1;
+            }
+            if user_profile.active_groups > 0 {
+                user_profile.active_groups -= 1;
+            }
+
+            // If user had locked funds, return them
+            let locked_amount = self.group_lock.read((group_id, member_address));
+            if locked_amount > 0 {
+                // Transfer locked funds back to user
+                let payment_token = IERC20Dispatcher {
+                    contract_address: self.payment_token_address.read(),
+                };
+                let success = payment_token.transfer(member_address, locked_amount);
+                assert(success, 'Failed to return locked funds');
+
+                // Clear the lock record
+                self.group_lock.write((group_id, member_address), 0);
+
+                // Update user's total locked balance
+                let current_locked = self.locked_balance.read(member_address);
+                if current_locked >= locked_amount {
+                    self.locked_balance.write(member_address, current_locked - locked_amount);
+                }
+
+                // Update user profile lock amount
+                if user_profile.total_lock_amount >= locked_amount {
+                    user_profile.total_lock_amount -= locked_amount;
+                }
+            }
+
+            // Write updated user profile once
+            self.user_profiles.write(member_address, user_profile);
+
+            // Record activity
+            self._record_activity(
+                member_address,
+                ActivityType::GroupLeft,
+                "Removed from group by admin/creator",
+                0,
+                Option::Some(group_id),
+                false,
+            );
+
+            true
         }
     }
 

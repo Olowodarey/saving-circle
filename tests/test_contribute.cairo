@@ -40,8 +40,14 @@ fn setup_user_and_group(
     contribution_amount: u256,
     token_amount: u256,
 ) -> u256 {
+  
     let dispatcher = IsavecircleDispatcher { contract_address };
     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+
+      // Owner grants admin role to user
+      start_cheat_caller_address(contract_address, owner);
+      dispatcher.add_admin(user);
+      stop_cheat_caller_address(contract_address);
 
     // Register user
     start_cheat_caller_address(contract_address, user);
@@ -475,11 +481,17 @@ fn test_contribute_two_groups_multiple_members() {
     let dispatcher = IsavecircleDispatcher { contract_address };
     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
+      // Owner grants admin role to user
+  
+
     // Users for group 1
     let group1_user1: ContractAddress = contract_address_const::<2>();
     let group1_user2: ContractAddress = contract_address_const::<3>();
 
+    
+
     // Users for group 2
+
     let group2_user1: ContractAddress = contract_address_const::<4>();
     let group2_user2: ContractAddress = contract_address_const::<5>();
 
@@ -495,6 +507,11 @@ fn test_contribute_two_groups_multiple_members() {
     start_cheat_caller_address(contract_address, group1_user2);
     dispatcher.register_user("Group1User2", "avatar_g1u2.png");
     dispatcher.join_group(group1_id);
+    stop_cheat_caller_address(contract_address);
+
+    // Grant admin role to group2_user1 so they can create public group
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(group2_user1);
     stop_cheat_caller_address(contract_address);
 
     // Setup Group 2 (first user creates and joins)

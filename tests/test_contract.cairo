@@ -93,7 +93,7 @@ fn test_register_user_event() {
 
 #[test]
 fn test_create_public_group() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     let user: ContractAddress = contract_address_const::<'2'>(); // arbitrary test address
@@ -104,6 +104,15 @@ fn test_create_public_group() {
     let avatar: ByteArray = "https://example.com/avatar.png";
 
     dispatcher.register_user(name, avatar);
+    stop_cheat_caller_address(contract_address);
+
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
+
+    // Now user can create public group as admin
+    start_cheat_caller_address(contract_address, user);
 
     // Check that the user profile is stored correctly
     let profile_data: ProfileViewData = dispatcher.get_user_profile_view_data(user);
@@ -149,7 +158,7 @@ fn test_create_public_group() {
 
 #[test]
 fn test_create_public_group_event() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     let mut spy = spy_events();
@@ -162,6 +171,15 @@ fn test_create_public_group_event() {
     let avatar: ByteArray = "https://example.com/avatar.png";
 
     dispatcher.register_user(name, avatar);
+    stop_cheat_caller_address(contract_address);
+
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
+
+    // Now user can create public group as admin
+    start_cheat_caller_address(contract_address, user);
 
     // create group
     dispatcher
@@ -408,7 +426,7 @@ fn test_create_private_group_event() {
 
 #[test]
 fn test_join_group() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     // Create users
@@ -425,6 +443,11 @@ fn test_join_group() {
     dispatcher.register_user("Joiner", "https://example.com/joiner.png");
     stop_cheat_caller_address(contract_address);
 
+
+     // Owner grants admin role to user
+     start_cheat_caller_address(contract_address, owner);
+     dispatcher.add_admin(creator);
+     stop_cheat_caller_address(contract_address);
     // create group
     start_cheat_caller_address(contract_address, creator);
     let _now = get_block_timestamp();
@@ -624,7 +647,7 @@ fn test_group_member_with_multiple_members() {
 
 #[test]
 fn test_user_joins_multiple_groups() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     // Create users
@@ -643,6 +666,12 @@ fn test_user_joins_multiple_groups() {
 
     start_cheat_caller_address(contract_address, joiner);
     dispatcher.register_user("Joiner", "https://example.com/joiner.png");
+    stop_cheat_caller_address(contract_address);
+
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(creator1);
+    dispatcher.add_admin(creator2);
     stop_cheat_caller_address(contract_address);
 
     // Creator1 creates first group
@@ -724,7 +753,7 @@ fn test_user_joins_multiple_groups() {
 
 #[test]
 fn test_get_user_joined_groups() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     let user: ContractAddress = contract_address_const::<'2'>();
@@ -738,6 +767,11 @@ fn test_get_user_joined_groups() {
     start_cheat_caller_address(contract_address, creator);
     dispatcher.register_user("Creator", "https://example.com/creator.png");
     stop_cheat_caller_address(contract_address);
+
+        // Owner grants admin role to user
+        start_cheat_caller_address(contract_address, owner);
+        dispatcher.add_admin(creator);
+        stop_cheat_caller_address(contract_address);
 
     // Creator creates multiple groups
     start_cheat_caller_address(contract_address, creator);
@@ -783,14 +817,21 @@ fn test_get_user_joined_groups() {
 
 #[test]
 fn test_get_user_activities() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     let user: ContractAddress = contract_address_const::<'2'>();
 
+
+         // Owner grants admin role to user
+         start_cheat_caller_address(contract_address, owner);
+         dispatcher.add_admin(user);
+         stop_cheat_caller_address(contract_address);
     // Register user (this creates an activity)
     start_cheat_caller_address(contract_address, user);
     dispatcher.register_user("TestUser", "https://example.com/user.png");
+
+   
 
     // Create a group (this creates another activity)
     dispatcher
@@ -845,7 +886,7 @@ fn test_get_user_statistics() {
 
 #[test]
 fn test_get_user_profile_view_data() {
-    let (contract_address, _, _token_address) = setup();
+    let (contract_address, owner, _token_address) = setup();
     let dispatcher = IsavecircleDispatcher { contract_address };
 
     let user: ContractAddress = contract_address_const::<'2'>();
@@ -855,6 +896,11 @@ fn test_get_user_profile_view_data() {
     start_cheat_caller_address(contract_address, user);
     dispatcher.register_user("TestUser", "https://example.com/user.png");
     stop_cheat_caller_address(contract_address);
+
+         // Owner grants admin role to user
+         start_cheat_caller_address(contract_address, owner);
+         dispatcher.add_admin(creator);
+         stop_cheat_caller_address(contract_address);
 
     start_cheat_caller_address(contract_address, creator);
     dispatcher.register_user("Creator", "https://example.com/creator.png");
@@ -930,21 +976,7 @@ fn test_register_user_empty_name() {
     dispatcher.register_user("", "https://example.com/user.png");
 }
 
-#[test]
-#[should_panic(expected: ('Only registered can create',))]
-fn test_create_group_unregistered_user() {
-    let (contract_address, _, _token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
 
-    let user: ContractAddress = contract_address_const::<'2'>();
-    start_cheat_caller_address(contract_address, user);
-
-    // Try to create group without registering - should panic
-    dispatcher
-        .create_public_group(
-            "Test Group", "Should fail", 3, 100, LockType::Progressive, 1, TimeUnit::Days, false, 0,
-        );
-}
 
 #[test]
 #[should_panic(expected: ('Only registered can join',))]

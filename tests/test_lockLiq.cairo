@@ -47,8 +47,15 @@ fn test_lock_liquidity_basic_functionality() {
     // Register user
     start_cheat_caller_address(contract_address, user);
     dispatcher.register_user("TestUser", "avatar.png");
+    stop_cheat_caller_address(contract_address);
+
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
 
     // Create a group with lock requirement
+    start_cheat_caller_address(contract_address, user);
     let group_id = dispatcher
         .create_public_group(
             "TestGroup", // name
@@ -114,10 +121,18 @@ fn test_lock_liquidity_multiple_locks() {
     // Create test user
     let user: ContractAddress = contract_address_const::<2>();
 
-    // Register user and create group
+    // Register user
     start_cheat_caller_address(contract_address, user);
     dispatcher.register_user("TestUser", "avatar.png");
+    stop_cheat_caller_address(contract_address);
 
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
+
+    // Create group
+    start_cheat_caller_address(contract_address, user);
     let group_id = dispatcher
         .create_public_group(
             "TestGroup", // name
@@ -179,10 +194,18 @@ fn test_lock_liquidity_insufficient_balance() {
 
     let user: ContractAddress = contract_address_const::<2>();
 
-    // Register user and create group
+    // Register user
     start_cheat_caller_address(contract_address, user);
     dispatcher.register_user("TestUser", "avatar.png");
+    stop_cheat_caller_address(contract_address);
 
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
+
+    // Create group
+    start_cheat_caller_address(contract_address, user);
     dispatcher
         .create_public_group(
             "TestGroup", // name
@@ -228,6 +251,15 @@ fn test_get_locked_balance_multiple_users() {
     // Register users
     start_cheat_caller_address(contract_address, user1);
     dispatcher.register_user("User1", "avatar1.png");
+    stop_cheat_caller_address(contract_address);
+
+    // Owner grants admin role to user1
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user1);
+    stop_cheat_caller_address(contract_address);
+
+    // Create group with user1 as admin
+    start_cheat_caller_address(contract_address, user1);
     let group_id = dispatcher
         .create_public_group(
             "TestGroup", // name

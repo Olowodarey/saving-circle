@@ -99,5 +99,11 @@ pub trait Isavecircle<TContractState> {
     fn check_and_apply_deadline_penalty(
         ref self: TContractState, group_id: u256, user: ContractAddress,
     ) -> u256;
+
+    // Admin functions for group management
+    fn remove_member_from_group(
+        ref self: TContractState, group_id: u256, member_address: ContractAddress,
+    ) -> bool;
+    fn add_admin(ref self: TContractState, new_admin: ContractAddress) -> bool;     
 }
 
