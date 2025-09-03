@@ -81,11 +81,17 @@ pub trait Isavecircle<TContractState> {
     fn admin_withdraw_from_pool(
         ref self: TContractState, group_id: u256, amount: u256, recipient: ContractAddress,
     ) -> bool;
-    
 
-    fn get_group_locked_funds(self: @TContractState, group_id: u256) -> (u256, Array<(ContractAddress, u256)>);
-    fn get_contribution_deadline(self: @TContractState, group_id: u256, user: ContractAddress) -> u64;
-    fn get_missed_deadline_penalty(self: @TContractState, group_id: u256, user: ContractAddress) -> u256;
+
+    fn get_group_locked_funds(
+        self: @TContractState, group_id: u256,
+    ) -> (u256, Array<(ContractAddress, u256)>);
+    fn get_contribution_deadline(
+        self: @TContractState, group_id: u256, user: ContractAddress,
+    ) -> u64;
+    fn get_missed_deadline_penalty(
+        self: @TContractState, group_id: u256, user: ContractAddress,
+    ) -> u256;
     fn get_time_until_deadline(self: @TContractState, group_id: u256, user: ContractAddress) -> u64;
     fn track_missed_deadline_penalty(
         ref self: TContractState, group_id: u256, user: ContractAddress, penalty_amount: u256,
@@ -94,4 +100,4 @@ pub trait Isavecircle<TContractState> {
         ref self: TContractState, group_id: u256, user: ContractAddress,
     ) -> u256;
 }
-    
+

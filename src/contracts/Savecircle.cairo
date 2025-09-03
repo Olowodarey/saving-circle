@@ -98,10 +98,13 @@ pub mod SaveCircle {
         protocol_treasury: u256, // Accumulated protocol fees
         insurance_rate: u256, // 100 = 1%
         protocol_fee_rate: u256,
-        contribution_deadlines: Map<(u256, ContractAddress), u64>, // (group_id, user) -> next_deadline
-        missed_deadline_penalties: Map<(u256, ContractAddress), u256>, // (group_id, user) -> penalty_amount
-        early_withdrawal_penalty_rate: u256, // Penalty rate for early withdrawal (e.g., 1000 = 10%)
-
+        contribution_deadlines: Map<
+            (u256, ContractAddress), u64,
+        >, // (group_id, user) -> next_deadline
+        missed_deadline_penalties: Map<
+            (u256, ContractAddress), u256,
+        >, // (group_id, user) -> penalty_amount
+        early_withdrawal_penalty_rate: u256 // Penalty rate for early withdrawal (e.g., 1000 = 10%)
     }
 
     #[event]
@@ -615,6 +618,12 @@ pub mod SaveCircle {
             let allowance = token.allowance(caller, get_contract_address());
             assert(allowance >= amount, Errors::INSUFFICIENT_ALLOWANCE);
 
+            // Enforce that every lock must be at least the contribution amount
+            assert(
+                amount >= group_info.contribution_amount,
+                Errors::LOCK_AMOUNT_MUST_BE_GREATER_THAN_OR_EQUAL_TO_CONTRIBUTION_AMOUNT,
+            );
+
             // Transfer tokens from user to this contract
             let success = token.transfer_from(caller, get_contract_address(), amount);
             assert(success, Errors::TOKEN_TRANSFER_FAILED);
@@ -768,9 +777,9 @@ pub mod SaveCircle {
                 .transfer_from(caller, get_contract_address(), total_payment);
             assert(success, Errors::CONTRIBUTION_TRANSFER_FAILED);
 
-            // Add insurance fee to group's insurance pool
+            // Add insurance fee and penalty to group's insurance pool
             let current_pool = self.insurance_pool.read(group_id);
-            self.insurance_pool.write(group_id, current_pool + insurance_fee);
+            self.insurance_pool.write(group_id, current_pool + insurance_fee + deadline_penalty);
 
             // Update member's contribution count and total contributed
             group_member.contribution_count += 1;
@@ -778,28 +787,29 @@ pub mod SaveCircle {
             self.group_members.write((group_id, member_index), group_member);
 
             // Set next contribution deadline based on group cycle with strict timing
-            // Daily: 22 hours (2-hour buffer before late penalty)
-            // Weekly: 6 days (1-day buffer before late penalty) 
-            // Monthly: 28 days (2-day buffer before late penalty)
+            // Daily: 26 hours (2-hour buffer before late penalty)
+            // Weekly: 7 days (1-day buffer before late penalty)
+            // Monthly: 30 days (2-day buffer before late penalty)
             let next_deadline = match group_info.cycle_unit {
                 TimeUnit::Days => {
-                    current_time + (22 * 3600) // 22 hours = 22 * 60 * 60
+                    current_time + (26 * 3600) // 22 hours = 22 * 60 * 60
                 },
                 TimeUnit::Weeks => {
-                    current_time + (6 * 86400) // 6 days = 6 * 24 * 60 * 60
+                    current_time + (7 * 86400 + 5 * 3600) // 6 days = 6 * 24 * 60 * 60 + 2 * 60 * 60
                 },
                 TimeUnit::Months => {
-                    current_time + (28 * 86400) // 28 days = 28 * 24 * 60 * 60 (2-day buffer)
-                }
+                    current_time
+                        + (30 * 86400 + 24 * 3600) // 28 days = 28 * 24 * 60 * 60 + 2 * 24 * 60 * 60
+                },
             };
-            
+
             self.contribution_deadlines.write((group_id, caller), next_deadline);
 
             // Update user profile statistics
             let mut user_profile = self.user_profiles.read(caller);
             user_profile.total_contribution += contribution_amount;
             user_profile.total_payments += 1;
-            
+
             // Update on-time payments based on whether penalty was applied
             if deadline_penalty == 0 {
                 user_profile.on_time_payments += 1;
@@ -1137,7 +1147,9 @@ pub mod SaveCircle {
             true
         }
 
-        fn get_group_locked_funds(self: @ContractState, group_id: u256) -> (u256, Array<(ContractAddress, u256)>) {
+        fn get_group_locked_funds(
+            self: @ContractState, group_id: u256,
+        ) -> (u256, Array<(ContractAddress, u256)>) {
             // Verify group exists
             let group_info = self.groups.read(group_id);
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
@@ -1146,32 +1158,39 @@ pub mod SaveCircle {
             let mut member_funds = ArrayTrait::new();
             let total_members = group_info.members;
 
-            // Iterate through all members to get their locked amounts
+            // Iterate through all members to get their locked amounts from group_lock mapping
             let mut i = 0_u32;
             while i < total_members {
                 let group_member = self.group_members.read((group_id, i));
-                if group_member.locked_amount > 0 {
-                    total_locked += group_member.locked_amount;
-                    member_funds.append((group_member.user, group_member.locked_amount));
+                let locked_amount = self.group_lock.read((group_id, group_member.user));
+                if locked_amount > 0 {
+                    total_locked += locked_amount;
+                    member_funds.append((group_member.user, locked_amount));
                 }
                 i += 1;
-            };
+            }
 
             (total_locked, member_funds)
         }
 
-        fn get_contribution_deadline(self: @ContractState, group_id: u256, user: ContractAddress) -> u64 {
+        fn get_contribution_deadline(
+            self: @ContractState, group_id: u256, user: ContractAddress,
+        ) -> u64 {
             self.contribution_deadlines.read((group_id, user))
         }
 
-        fn get_missed_deadline_penalty(self: @ContractState, group_id: u256, user: ContractAddress) -> u256 {
+        fn get_missed_deadline_penalty(
+            self: @ContractState, group_id: u256, user: ContractAddress,
+        ) -> u256 {
             self.missed_deadline_penalties.read((group_id, user))
         }
 
-        fn get_time_until_deadline(self: @ContractState, group_id: u256, user: ContractAddress) -> u64 {
+        fn get_time_until_deadline(
+            self: @ContractState, group_id: u256, user: ContractAddress,
+        ) -> u64 {
             let deadline = self.contribution_deadlines.read((group_id, user));
             let current_time = get_block_timestamp();
-            
+
             if current_time >= deadline {
                 0 // Deadline has passed
             } else {
@@ -1184,22 +1203,24 @@ pub mod SaveCircle {
         ) -> u256 {
             let current_time = get_block_timestamp();
             let deadline = self.contribution_deadlines.read((group_id, user));
-            
+
             if current_time > deadline && deadline != 0 {
                 // User missed the deadline
                 let group_info = self.groups.read(group_id);
                 let penalty_amount = (group_info.contribution_amount * 500) / 10000; // 5% penalty
-                
+
                 // Track the penalty
                 let current_penalty = self.missed_deadline_penalties.read((group_id, user));
-                self.missed_deadline_penalties.write((group_id, user), current_penalty + penalty_amount);
-                
+                self
+                    .missed_deadline_penalties
+                    .write((group_id, user), current_penalty + penalty_amount);
+
                 // Update member's missed contributions count
                 let member_index = self.user_joined_groups.read((user, group_id));
                 let mut group_member = self.group_members.read((group_id, member_index));
                 group_member.missed_contributions += 1;
                 self.group_members.write((group_id, member_index), group_member);
-                
+
                 penalty_amount
             } else {
                 0

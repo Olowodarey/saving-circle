@@ -30,6 +30,8 @@ pub mod Errors {
     pub const CONTRIBUTION_TRANSFER_FAILED: felt252 = 'Contribution transfer fail';
     pub const PAYOUT_TRANSFER_FAILED: felt252 = 'Payout transfer failed';
     pub const INSUFFICIENT_POOL_BALANCE: felt252 = 'Insufficient pool balance';
+    pub const LOCK_AMOUNT_MUST_BE_GREATER_THAN_OR_EQUAL_TO_CONTRIBUTION_AMOUNT: felt252 =
+        'Lock amount must be >= contrib';
 
     // Member & Access Errors
     pub const USER_NOT_MEMBER: felt252 = 'User not member of this group';
@@ -42,9 +44,9 @@ pub mod Errors {
     pub const NO_ELIGIBLE_RECIPIENT_FOUND: felt252 = 'No eligible recipient found';
     pub const NO_ELIGIBLE_MEMBER_FOUND: felt252 = 'No eligible member found';
 
-        
-        // New errors for deadline and early withdrawal functionality
-        pub const GROUP_CYCLE_ALREADY_ENDED: felt252 = 'Group cycle already ended';
-        pub const CONTRIBUTION_DEADLINE_PASSED: felt252 = 'Contribution deadline passed';
-        pub const EARLY_WITHDRAWAL_NOT_ALLOWED: felt252 = 'Early withdrawal not allowed';
+
+    // New errors for deadline and early withdrawal functionality
+    pub const GROUP_CYCLE_ALREADY_ENDED: felt252 = 'Group cycle already ended';
+    pub const CONTRIBUTION_DEADLINE_PASSED: felt252 = 'Contribution deadline passed';
+    pub const EARLY_WITHDRAWAL_NOT_ALLOWED: felt252 = 'Early withdrawal not allowed';
 }
