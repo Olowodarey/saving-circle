@@ -104,6 +104,9 @@ pub mod SaveCircle {
         missed_deadline_penalties: Map<
             (u256, ContractAddress), u256,
         >, // (group_id, user) -> penalty_amount
+        user_cycle_contributions: Map<
+            (u256, ContractAddress, u64), bool,
+        >, // (group_id, user, cycle) -> has_contributed
         early_withdrawal_penalty_rate: u256 // Penalty rate for early withdrawal (e.g., 1000 = 10%)
     }
 
@@ -751,6 +754,11 @@ pub mod SaveCircle {
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
             assert(group_info.state == GroupState::Active, Errors::GROUP_MUST_BE_ACTIVE);
 
+            // Check if user has already contributed in the current cycle
+            let current_cycle = group_info.current_cycle;
+            let has_contributed_this_cycle = self.user_cycle_contributions.read((group_id, caller, current_cycle));
+            assert(!has_contributed_this_cycle, Errors::ALREADY_CONTRIBUTED_THIS_CYCLE);
+
             // Check for missed deadline penalty
             let deadline_penalty = self.check_and_apply_deadline_penalty(group_id, caller);
 
@@ -789,6 +797,9 @@ pub mod SaveCircle {
             group_member.contribution_count += 1;
             group_member.total_contributed += contribution_amount;
             self.group_members.write((group_id, member_index), group_member);
+
+            // Mark that user has contributed in this cycle
+            self.user_cycle_contributions.write((group_id, caller, current_cycle), true);
 
             // Set next contribution deadline based on group cycle with strict timing
             // Daily: 26 hours (2-hour buffer before late penalty)
@@ -878,6 +889,16 @@ pub mod SaveCircle {
 
             // Only admin can distribute payouts
             self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
+
+            // Check that all members have contributed for the current cycle
+            let current_cycle = group_info.current_cycle;
+            let mut member_index: u32 = 0;
+            while member_index < group_info.members {
+                let group_member = self.group_members.read((group_id, member_index));
+                let has_contributed = self.user_cycle_contributions.read((group_id, group_member.user, current_cycle));
+                assert(has_contributed, Errors::NOT_ALL_MEMBERS_CONTRIBUTED);
+                member_index += 1;
+            };
 
             let total_contributions = self._calculate_total_contributions(group_id);
             assert(total_contributions > 0, Errors::NO_CONTRIBUTIONS_TO_DISTRIBUTE);
@@ -1086,6 +1107,37 @@ pub mod SaveCircle {
 
         fn get_insurance_pool_balance(self: @ContractState, group_id: u256) -> u256 {
             self.insurance_pool.read(group_id)
+        }
+
+        fn get_current_cycle(self: @ContractState, group_id: u256) -> u64 {
+            let group_info = self.groups.read(group_id);
+            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+            group_info.current_cycle
+        }
+
+        fn get_cycle_contributors(
+            self: @ContractState, group_id: u256
+        ) -> Array<ContractAddress> {
+            let group_info = self.groups.read(group_id);
+            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+            
+            let current_cycle = group_info.current_cycle;
+            let mut contributors = ArrayTrait::new();
+            
+            // Iterate through all group members to check who has contributed
+            let mut member_index: u32 = 0;
+            while member_index < group_info.members {
+                let group_member = self.group_members.read((group_id, member_index));
+                let has_contributed = self.user_cycle_contributions.read((group_id, group_member.user, current_cycle));
+                
+                if has_contributed {
+                    contributors.append(group_member.user);
+                }
+                
+                member_index += 1;
+            };
+            
+            contributors
         }
 
         // fn get_protocol_treasury(self: @ContractState) -> u256 {

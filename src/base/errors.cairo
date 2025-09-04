@@ -28,6 +28,8 @@ pub mod Errors {
     pub const TOKEN_TRANSFER_FAILED: felt252 = 'Token transfer failed';
     pub const INSUFFICIENT_BAL_FOR_CONTRI: felt252 = 'Insufficient bal for contri';
     pub const CONTRIBUTION_TRANSFER_FAILED: felt252 = 'Contribution transfer fail';
+    pub const ALREADY_CONTRIBUTED_THIS_CYCLE: felt252 = 'Already contributed this cycle';
+    pub const NOT_ALL_MEMBERS_CONTRIBUTED: felt252 = 'Not all members contributed';
     pub const PAYOUT_TRANSFER_FAILED: felt252 = 'Payout transfer failed';
     pub const INSUFFICIENT_POOL_BALANCE: felt252 = 'Insufficient pool balance';
     pub const LOCK_AMOUNT_MUST_BE_GREATER_THAN_OR_EQUAL_TO_CONTRIBUTION_AMOUNT: felt252 =
