@@ -40,6 +40,7 @@ pub mod Errors {
     pub const NO_LOCKED_FUNDS_TO_WITHDRAW: felt252 = 'No locked funds to withdraw';
     pub const FUNDS_ALREADY_WITHDRAWN: felt252 = 'Funds already withdrawn';
     pub const PENALTY_EXCEEDS_LOCKED_AMOUNT: felt252 = 'Penalty exceeds locked amt';
+    pub const INSUFFICIENT_LOCKED_FUNDS: felt252 = 'Insufficient locked funds';
 
     // Payout & Distribution Errors
     pub const NO_CONTRIBUTIONS_TO_DISTRIBUTE: felt252 = 'No contributions to distrib';

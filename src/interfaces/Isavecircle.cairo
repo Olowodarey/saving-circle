@@ -87,6 +87,9 @@ pub trait Isavecircle<TContractState> {
     fn get_group_locked_funds(
         self: @TContractState, group_id: u256,
     ) -> (u256, Array<(ContractAddress, u256)>);
+    fn get_cycle_contributors(
+        self: @TContractState, group_id: u256, cycle: u64,
+    ) -> (u256, Array<(ContractAddress, u256)>);
     fn get_contribution_deadline(
         self: @TContractState, group_id: u256, user: ContractAddress,
     ) -> u64;
@@ -106,9 +109,15 @@ pub trait Isavecircle<TContractState> {
         ref self: TContractState, group_id: u256, member_address: ContractAddress,
     ) -> bool;
     fn add_admin(ref self: TContractState, new_admin: ContractAddress) -> bool;
+    fn admin_contribute_from_lock(
+        ref self: TContractState, group_id: u256, user: ContractAddress,
+    ) -> bool;
     
     // Cycle tracking getter functions
     fn get_current_cycle(self: @TContractState, group_id: u256) -> u64;
-    fn get_cycle_contributors(self: @TContractState, group_id: u256) -> Array<ContractAddress>;
+    fn get_current_cycle_contributors(self: @TContractState, group_id: u256) -> Array<ContractAddress>;
+    fn get_group_total_contributions(
+        self: @TContractState, group_id: u256,
+    ) -> (u256, u256, Array<(ContractAddress, u256)>);
 }
 

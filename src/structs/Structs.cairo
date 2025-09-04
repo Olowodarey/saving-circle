@@ -71,7 +71,7 @@ pub struct GroupInfo {
     pub is_active: bool,
 }
 
-#[derive(Drop, Serde, Clone, starknet::Store)]
+#[derive(Drop, Serde, Copy, starknet::Store)]
 pub struct GroupMember {
     pub user: ContractAddress,
     pub group_id: u256,
