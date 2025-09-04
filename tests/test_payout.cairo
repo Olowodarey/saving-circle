@@ -55,10 +55,10 @@ fn setup_group_with_contributions(
         i += 1;
     }
 
-     // Owner grants admin role to user
-     start_cheat_caller_address(contract_address, owner);
-     dispatcher.add_admin(creator);
-     stop_cheat_caller_address(contract_address);
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(creator);
+    stop_cheat_caller_address(contract_address);
 
     // Create group with creator
     start_cheat_caller_address(contract_address, creator);
@@ -148,7 +148,24 @@ fn test_distribute_payout_success() {
     assert(result == true, 'Payout should succeed');
     stop_cheat_caller_address(contract_address);
 
-    // Check that recipient received payout
+    // Check group state updates after distribute_payout
+    let group_info = dispatcher.get_group_info(group_id);
+    assert(group_info.current_cycle == 1, 'Cycle should increment');
+    assert(group_info.payout_order == 1, 'Payout order should increment');
+
+    // Check member payout eligibility (not yet paid)
+    let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
+    let updated_member = dispatcher.get_group_member(group_id, member_index);
+    assert(updated_member.payout_cycle > 0, 'Member should be eligible');
+    assert(updated_member.has_been_paid == false, 'Member should not be paid yet');
+
+    // Now recipient claims their payout
+    start_cheat_caller_address(contract_address, next_recipient.user);
+    let claimed_amount = dispatcher.claim_payout(group_id);
+    assert(claimed_amount > 0, 'Should claim positive amount');
+    stop_cheat_caller_address(contract_address);
+
+    // Check that recipient received payout after claiming
     let recipient_balance = token_dispatcher.balance_of(next_recipient.user);
 
     if next_recipient.user == user1 {
@@ -159,15 +176,9 @@ fn test_distribute_payout_success() {
         assert(recipient_balance > initial_balance_user3, 'User3 should receive payout');
     }
 
-    // Check group state updates
-    let group_info = dispatcher.get_group_info(group_id);
-    assert(group_info.current_cycle == 1, 'Cycle should increment');
-    assert(group_info.payout_order == 1, 'Payout order should increment');
-
-    // Check member payout status
-    let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
-    let updated_member = dispatcher.get_group_member(group_id, member_index);
-    assert(updated_member.has_been_paid == true, 'Member should be marked as paid');
+    // Check member payout status after claiming
+    let final_member = dispatcher.get_group_member(group_id, member_index);
+    assert(final_member.has_been_paid == true, 'Member should be marked as paid');
 }
 
 #[test]
@@ -568,7 +579,24 @@ fn test_group_with_different_locks_no_early_payout() {
     assert(result == true, 'Payout should succeed');
     stop_cheat_caller_address(contract_address);
 
-    // Verify recipient received payout
+    // Verify group state updated after distribute_payout
+    let updated_group_info = dispatcher.get_group_info(group_id);
+    assert(updated_group_info.current_cycle == 1, 'Cycle should increment');
+    assert(updated_group_info.payout_order == 1, 'Payout order should increment');
+
+    // Verify recipient marked as eligible (not yet paid)
+    let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
+    let updated_member = dispatcher.get_group_member(group_id, member_index);
+    assert(updated_member.payout_cycle > 0, 'Member should be eligible');
+    assert(updated_member.has_been_paid == false, 'Member should not be paid yet');
+
+    // Now recipient claims their payout
+    start_cheat_caller_address(contract_address, next_recipient.user);
+    let claimed_amount = dispatcher.claim_payout(group_id);
+    assert(claimed_amount > 0, 'Should claim positive amount');
+    stop_cheat_caller_address(contract_address);
+
+    // Verify recipient received payout after claiming
     let final_balance = token_dispatcher.balance_of(next_recipient.user);
     assert(final_balance > initial_balance, 'Recipient should receive payout');
 
@@ -577,14 +605,8 @@ fn test_group_with_different_locks_no_early_payout() {
     let actual_payout = final_balance - initial_balance;
     assert(actual_payout == expected_payout, 'Payout amount should match');
 
-    // Verify group state updated
-    let updated_group_info = dispatcher.get_group_info(group_id);
-    assert(updated_group_info.current_cycle == 1, 'Cycle should increment');
-    assert(updated_group_info.payout_order == 1, 'Payout order should increment');
-
-    // Verify recipient marked as paid
-    let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
-    let updated_member = dispatcher.get_group_member(group_id, member_index);
-    assert(updated_member.has_been_paid == true, 'Member should be marked as paid');
+    // Verify recipient marked as paid after claiming
+    let final_member = dispatcher.get_group_member(group_id, member_index);
+    assert(final_member.has_been_paid == true, 'Member should be marked as paid');
 }
 

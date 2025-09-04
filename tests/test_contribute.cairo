@@ -40,14 +40,13 @@ fn setup_user_and_group(
     contribution_amount: u256,
     token_amount: u256,
 ) -> u256 {
-  
     let dispatcher = IsavecircleDispatcher { contract_address };
     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-      // Owner grants admin role to user
-      start_cheat_caller_address(contract_address, owner);
-      dispatcher.add_admin(user);
-      stop_cheat_caller_address(contract_address);
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
 
     // Register user
     start_cheat_caller_address(contract_address, user);
@@ -481,14 +480,11 @@ fn test_contribute_two_groups_multiple_members() {
     let dispatcher = IsavecircleDispatcher { contract_address };
     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-      // Owner grants admin role to user
-  
+    // Owner grants admin role to user
 
     // Users for group 1
     let group1_user1: ContractAddress = contract_address_const::<2>();
     let group1_user2: ContractAddress = contract_address_const::<3>();
-
-    
 
     // Users for group 2
 

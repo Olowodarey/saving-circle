@@ -160,9 +160,6 @@ pub mod SaveCircle {
             self.accesscontrol.assert_only_role(PAUSER_ROLE);
             self.pausable.unpause();
         }
-
-      
-     
     }
 
     #[abi(embed_v0)]
@@ -175,14 +172,12 @@ pub mod SaveCircle {
 
     #[abi(embed_v0)]
     impl SavecircleImpl of Isavecircle<ContractState> {
-
-   
         fn add_admin(ref self: ContractState, new_admin: ContractAddress) -> bool {
             self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
             self.accesscontrol._grant_role(DEFAULT_ADMIN_ROLE, new_admin);
             return true;
         }
-        
+
         fn register_user(ref self: ContractState, name: ByteArray, avatar: ByteArray) -> bool {
             let caller = get_caller_address();
             let current_time = get_block_timestamp();
@@ -673,6 +668,7 @@ pub mod SaveCircle {
 
             // Calculate cycle end time
             let cycle_duration_seconds = match group_info.cycle_unit {
+                TimeUnit::Hours => group_info.cycle_duration * 3600, // 1 * 60 * 60
                 TimeUnit::Days => group_info.cycle_duration * 86400, // 24 * 60 * 60
                 TimeUnit::Weeks => group_info.cycle_duration * 604800, // 7 * 24 * 60 * 60
                 TimeUnit::Months => group_info.cycle_duration
@@ -799,6 +795,9 @@ pub mod SaveCircle {
             // Weekly: 7 days (1-day buffer before late penalty)
             // Monthly: 30 days (2-day buffer before late penalty)
             let next_deadline = match group_info.cycle_unit {
+                TimeUnit::Hours => {
+                    current_time + (1 * 3600) // 22 hours = 22 * 60 * 60
+                },
                 TimeUnit::Days => {
                     current_time + (26 * 3600) // 22 hours = 22 * 60 * 60
                 },
@@ -892,17 +891,10 @@ pub mod SaveCircle {
             // Calculate payout amount (total contributions minus insurance fees already deducted)
             let payout_amount = total_contributions;
 
-            let payment_token = IERC20Dispatcher {
-                contract_address: self.payment_token_address.read(),
-            };
-            let success = payment_token.transfer(next_recipient.user, payout_amount);
-            assert(success, Errors::PAYOUT_TRANSFER_FAILED);
-
-            // Update recipient's payout status
+            // Mark recipient as eligible for payout (but don't transfer yet)
             let mut updated_member = next_recipient.clone();
-            updated_member.has_been_paid = true;
             updated_member.payout_cycle = group_info.current_cycle.try_into().unwrap() + 1;
-            updated_member.total_recieved += payout_amount;
+            // Note: has_been_paid remains false until user claims
             self.group_members.write((group_id, updated_member.member_index), updated_member);
 
             // Update group cycle information
@@ -910,24 +902,17 @@ pub mod SaveCircle {
             group_info.payout_order += 1;
             group_info.last_payout_time = get_block_timestamp();
 
-            // Check if all members have been paid (cycle complete)
+            // Store the payout amount in the group's remaining pool
+            group_info.remaining_pool_amount = payout_amount;
+
+            // Check if all members have been marked eligible (cycle complete)
             if group_info.payout_order >= group_info.members {
                 group_info.state = GroupState::Completed;
             }
 
             self.groups.write(group_id, group_info.clone());
 
-            self
-                ._record_activity(
-                    next_recipient.user,
-                    ActivityType::PayoutReceived,
-                    "Received payout from group",
-                    payout_amount,
-                    Option::Some(group_id),
-                    true,
-                );
-
-            // Emit payout event
+            // Emit payout eligibility event
             self
                 .emit(
                     PayoutDistributed {
@@ -939,6 +924,73 @@ pub mod SaveCircle {
                 );
 
             true
+        }
+
+        fn claim_payout(ref self: ContractState, group_id: u256) -> u256 {
+            let caller = get_caller_address();
+
+            self.pausable.assert_not_paused();
+
+            // Verify user is a member of this group
+            assert(self._is_member(group_id, caller), Errors::USER_NOT_MEMBER);
+
+            let group_info = self.groups.read(group_id);
+            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+
+            // Get user's member information
+            let member_index = self.user_joined_groups.read((caller, group_id));
+            let mut group_member = self.group_members.read((group_id, member_index));
+
+            // Check if user is eligible for payout (payout_cycle > 0 means they were marked
+            // eligible)
+            assert(group_member.payout_cycle > 0, Errors::NO_PAYOUT_AVAILABLE);
+
+            // Check if user has already claimed their payout
+            assert(!group_member.has_been_paid, Errors::PAYOUT_ALREADY_CLAIMED);
+
+            // Get the payout amount from the group's remaining pool
+            let payout_amount = group_info.remaining_pool_amount;
+            assert(payout_amount > 0, Errors::NO_PAYOUT_AVAILABLE);
+
+            // Transfer payout to user
+            let payment_token = IERC20Dispatcher {
+                contract_address: self.payment_token_address.read(),
+            };
+            let success = payment_token.transfer(caller, payout_amount);
+            assert(success, Errors::PAYOUT_TRANSFER_FAILED);
+
+            // Store payout cycle before updating member
+            let payout_cycle = group_member.payout_cycle;
+
+            // Update member's payout status
+            group_member.has_been_paid = true;
+            group_member.total_recieved += payout_amount;
+            self.group_members.write((group_id, member_index), group_member);
+
+            // Record activity
+            self
+                ._record_activity(
+                    caller,
+                    ActivityType::PayoutReceived,
+                    "Claimed payout from group",
+                    payout_amount,
+                    Option::Some(group_id),
+                    true,
+                );
+
+            // Emit payout claimed event
+            self
+                .emit(
+                    PayoutSent {
+                        group_id,
+                        recipient: caller,
+                        amount: payout_amount,
+                        cycle_number: payout_cycle.into(),
+                        timestamp: get_block_timestamp(),
+                    },
+                );
+
+            payout_amount
         }
 
 
@@ -1242,20 +1294,23 @@ pub mod SaveCircle {
             // Only admin or group creator can remove members
             let group_info = self.groups.read(group_id);
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
-            
+
             // Only allow removal before group is activated
             assert(group_info.state == GroupState::Created, 'Can only remove before active');
-            
+
             // Check permissions: admin or group creator
             assert(
-                self.accesscontrol.has_role(DEFAULT_ADMIN_ROLE, caller) || group_info.creator == caller,
-                'Only admin or creator'
+                self.accesscontrol.has_role(DEFAULT_ADMIN_ROLE, caller)
+                    || group_info.creator == caller,
+                'Only admin or creator',
             );
 
             // Check if user is actually a member
             let member_index = self.user_joined_groups.read((member_address, group_id));
             let group_member = self.group_members.read((group_id, member_index));
-            assert(group_member.user == member_address && group_member.is_active, 'User not a member');
+            assert(
+                group_member.user == member_address && group_member.is_active, 'User not a member',
+            );
 
             // Deactivate the member
             let mut updated_member = group_member;
@@ -1308,14 +1363,15 @@ pub mod SaveCircle {
             self.user_profiles.write(member_address, user_profile);
 
             // Record activity
-            self._record_activity(
-                member_address,
-                ActivityType::GroupLeft,
-                "Removed from group by admin/creator",
-                0,
-                Option::Some(group_id),
-                false,
-            );
+            self
+                ._record_activity(
+                    member_address,
+                    ActivityType::GroupLeft,
+                    "Removed from group by admin/creator",
+                    0,
+                    Option::Some(group_id),
+                    false,
+                );
 
             true
         }

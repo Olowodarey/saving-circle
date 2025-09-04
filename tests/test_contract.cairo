@@ -443,11 +443,10 @@ fn test_join_group() {
     dispatcher.register_user("Joiner", "https://example.com/joiner.png");
     stop_cheat_caller_address(contract_address);
 
-
-     // Owner grants admin role to user
-     start_cheat_caller_address(contract_address, owner);
-     dispatcher.add_admin(creator);
-     stop_cheat_caller_address(contract_address);
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(creator);
+    stop_cheat_caller_address(contract_address);
     // create group
     start_cheat_caller_address(contract_address, creator);
     let _now = get_block_timestamp();
@@ -768,10 +767,10 @@ fn test_get_user_joined_groups() {
     dispatcher.register_user("Creator", "https://example.com/creator.png");
     stop_cheat_caller_address(contract_address);
 
-        // Owner grants admin role to user
-        start_cheat_caller_address(contract_address, owner);
-        dispatcher.add_admin(creator);
-        stop_cheat_caller_address(contract_address);
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(creator);
+    stop_cheat_caller_address(contract_address);
 
     // Creator creates multiple groups
     start_cheat_caller_address(contract_address, creator);
@@ -822,16 +821,13 @@ fn test_get_user_activities() {
 
     let user: ContractAddress = contract_address_const::<'2'>();
 
-
-         // Owner grants admin role to user
-         start_cheat_caller_address(contract_address, owner);
-         dispatcher.add_admin(user);
-         stop_cheat_caller_address(contract_address);
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(user);
+    stop_cheat_caller_address(contract_address);
     // Register user (this creates an activity)
     start_cheat_caller_address(contract_address, user);
     dispatcher.register_user("TestUser", "https://example.com/user.png");
-
-   
 
     // Create a group (this creates another activity)
     dispatcher
@@ -897,10 +893,10 @@ fn test_get_user_profile_view_data() {
     dispatcher.register_user("TestUser", "https://example.com/user.png");
     stop_cheat_caller_address(contract_address);
 
-         // Owner grants admin role to user
-         start_cheat_caller_address(contract_address, owner);
-         dispatcher.add_admin(creator);
-         stop_cheat_caller_address(contract_address);
+    // Owner grants admin role to user
+    start_cheat_caller_address(contract_address, owner);
+    dispatcher.add_admin(creator);
+    stop_cheat_caller_address(contract_address);
 
     start_cheat_caller_address(contract_address, creator);
     dispatcher.register_user("Creator", "https://example.com/creator.png");
@@ -975,7 +971,6 @@ fn test_register_user_empty_name() {
     // Try to register with empty name - should panic
     dispatcher.register_user("", "https://example.com/user.png");
 }
-
 
 
 #[test]

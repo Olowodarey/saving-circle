@@ -76,6 +76,7 @@ pub trait Isavecircle<TContractState> {
     // fn get_protocol_treasury(self: @TContractState) -> u256;
     fn activate_group(ref self: TContractState, group_id: u256) -> bool;
     fn distribute_payout(ref self: TContractState, group_id: u256) -> bool;
+    fn claim_payout(ref self: TContractState, group_id: u256) -> u256;
     fn get_next_payout_recipient(self: @TContractState, group_id: u256) -> GroupMember;
     fn get_payout_order(self: @TContractState, group_id: u256) -> Array<ContractAddress>;
     fn admin_withdraw_from_pool(
@@ -104,6 +105,6 @@ pub trait Isavecircle<TContractState> {
     fn remove_member_from_group(
         ref self: TContractState, group_id: u256, member_address: ContractAddress,
     ) -> bool;
-    fn add_admin(ref self: TContractState, new_admin: ContractAddress) -> bool;     
+    fn add_admin(ref self: TContractState, new_admin: ContractAddress) -> bool;
 }
 

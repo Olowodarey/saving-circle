@@ -43,6 +43,8 @@ pub mod Errors {
     pub const NO_CONTRIBUTIONS_TO_DISTRIBUTE: felt252 = 'No contributions to distrib';
     pub const NO_ELIGIBLE_RECIPIENT_FOUND: felt252 = 'No eligible recipient found';
     pub const NO_ELIGIBLE_MEMBER_FOUND: felt252 = 'No eligible member found';
+    pub const NO_PAYOUT_AVAILABLE: felt252 = 'No payout available';
+    pub const PAYOUT_ALREADY_CLAIMED: felt252 = 'Payout already claimed';
 
 
     // New errors for deadline and early withdrawal functionality

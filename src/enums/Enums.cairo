@@ -8,6 +8,7 @@ pub enum LockType {
 #[allow(starknet::store_no_default_variant)]
 #[derive(Copy, Drop, Serde, PartialEq, starknet::Store)]
 pub enum TimeUnit {
+    Hours,
     Days,
     Weeks,
     Months,
