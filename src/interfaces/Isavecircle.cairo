@@ -119,5 +119,6 @@ pub trait Isavecircle<TContractState> {
     fn get_group_total_contributions(
         self: @TContractState, group_id: u256,
     ) -> (u256, u256, Array<(ContractAddress, u256)>);
+    fn get_held_payouts(self: @TContractState, group_id: u256) -> u32;
 }
 

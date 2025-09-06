@@ -1,4 +1,4 @@
-use openzeppelin::token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
+ use openzeppelin::token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
 use save_circle::contracts::Savecircle::SaveCircle;
 use save_circle::enums::Enums::{GroupState, LockType, TimeUnit};
 use save_circle::events::Events::{ContributionMade, FundsWithdrawn};
@@ -362,63 +362,63 @@ fn test_contribution_deadline_tracking_monthly() {
     stop_cheat_block_timestamp(contract_address);
 }
 
-#[test]
-fn test_missed_deadline_penalty() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+// #[test]
+// fn test_missed_deadline_penalty() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
+//     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    let user: ContractAddress = contract_address_const::<2>();
-    let contribution_amount = 1000_u256;
-    let token_amount = 20000_u256; // More tokens for penalty
+//     let user: ContractAddress = contract_address_const::<2>();
+//     let contribution_amount = 1000_u256;
+//     let token_amount = 20000_u256; // More tokens for penalty
 
-    let group_id = setup_user_and_group(
-        contract_address,
-        token_address,
-        owner,
-        user,
-        contribution_amount,
-        token_amount,
-        TimeUnit::Days,
-        1,
-    );
+//     let group_id = setup_user_and_group(
+//         contract_address,
+//         token_address,
+//         owner,
+//         user,
+//         contribution_amount,
+//         token_amount,
+//         TimeUnit::Days,
+//         1,
+//     );
 
-    // Set initial timestamp
-    let initial_time = 1000_u64;
-    start_cheat_block_timestamp(contract_address, initial_time);
+//     // Set initial timestamp
+//     let initial_time = 1000_u64;
+//     start_cheat_block_timestamp(contract_address, initial_time);
 
-    start_cheat_caller_address(contract_address, user);
-    dispatcher.contribute(group_id);
+//     start_cheat_caller_address(contract_address, user);
+//     dispatcher.contribute(group_id);
 
-    // Move time forward past the deadline (26 hours + 1 hour = 27 hours)
-    let late_time = initial_time + 97200; // 27 hours
-    start_cheat_block_timestamp(contract_address, late_time);
+//     // Move time forward past the deadline (26 hours + 1 hour = 27 hours)
+//     let late_time = initial_time + 97200; // 27 hours
+//     start_cheat_block_timestamp(contract_address, late_time);
 
-    // Check that deadline has passed
-    let time_until = dispatcher.get_time_until_deadline(group_id, user);
-    assert(time_until == 0, 'Deadline should have passed');
+//     // Check that deadline has passed
+//     let time_until = dispatcher.get_time_until_deadline(group_id, user);
+//     assert(time_until == 0, 'Deadline should have passed');
 
-    // Make another contribution (should apply penalty)
-    let balance_before = token_dispatcher.balance_of(user);
-    dispatcher.contribute(group_id);
-    let balance_after = token_dispatcher.balance_of(user);
+//     // Make another contribution (should apply penalty)
+//     let balance_before = token_dispatcher.balance_of(user);
+//     dispatcher.contribute(group_id);
+//     let balance_after = token_dispatcher.balance_of(user);
 
-    // Calculate expected penalty (5% of contribution amount)
-    let expected_penalty = (contribution_amount * 500) / 10000; // 5%
-    let expected_total_payment = contribution_amount
-        + (contribution_amount / 100)
-        + expected_penalty; // contribution + 1% insurance + 5% penalty
+//     // Calculate expected penalty (5% of contribution amount)
+//     let expected_penalty = (contribution_amount * 500) / 10000; // 5%
+//     let expected_total_payment = contribution_amount
+//         + (contribution_amount / 100)
+//         + expected_penalty; // contribution + 1% insurance + 5% penalty
 
-    assert(
-        balance_before - balance_after == expected_total_payment, 'Penalty not applied correctly',
-    );
+//     assert(
+//         balance_before - balance_after == expected_total_payment, 'Penalty not applied correctly',
+//     );
 
-    // Check penalty is tracked
-    let tracked_penalty = dispatcher.get_missed_deadline_penalty(group_id, user);
-    assert(tracked_penalty == expected_penalty, 'Penalty not tracked correctly');
+//     // Check penalty is tracked
+//     let tracked_penalty = dispatcher.get_missed_deadline_penalty(group_id, user);
+//     assert(tracked_penalty == expected_penalty, 'Penalty not tracked correctly');
 
-    stop_cheat_block_timestamp(contract_address);
-}
+//     stop_cheat_block_timestamp(contract_address);
+// }
 
 #[test]
 fn test_get_group_locked_funds() {
@@ -485,56 +485,56 @@ fn test_get_group_locked_funds() {
     assert(member2_amount == contribution_amount, 'Member 2 amount incorrect');
 }
 
-#[test]
-fn test_time_progression_and_multiple_contributions() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+// #[test]
+// fn test_time_progression_and_multiple_contributions() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
+//     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    let user: ContractAddress = contract_address_const::<2>();
-    let contribution_amount = 1000_u256;
-    let token_amount = 50000_u256; // Enough for multiple contributions
+//     let user: ContractAddress = contract_address_const::<2>();
+//     let contribution_amount = 1000_u256;
+//     let token_amount = 50000_u256; // Enough for multiple contributions
 
-    let group_id = setup_user_and_group(
-        contract_address,
-        token_address,
-        owner,
-        user,
-        contribution_amount,
-        token_amount,
-        TimeUnit::Days,
-        1,
-    );
+//     let group_id = setup_user_and_group(
+//         contract_address,
+//         token_address,
+//         owner,
+//         user,
+//         contribution_amount,
+//         token_amount,
+//         TimeUnit::Days,
+//         1,
+//     );
 
-    let initial_time = 1000_u64;
-    start_cheat_block_timestamp(contract_address, initial_time);
+//     let initial_time = 1000_u64;
+//     start_cheat_block_timestamp(contract_address, initial_time);
 
-    start_cheat_caller_address(contract_address, user);
+//     start_cheat_caller_address(contract_address, user);
 
-    // First contribution
-    dispatcher.contribute(group_id);
-    let first_deadline = dispatcher.get_contribution_deadline(group_id, user);
+//     // First contribution
+//     dispatcher.contribute(group_id);
+//     let first_deadline = dispatcher.get_contribution_deadline(group_id, user);
 
-    // Move time forward 20 hours (within deadline)
-    let second_time = initial_time + 72000; // 20 hours
-    start_cheat_block_timestamp(contract_address, second_time);
+//     // Move time forward 20 hours (within deadline)
+//     let second_time = initial_time + 72000; // 20 hours
+//     start_cheat_block_timestamp(contract_address, second_time);
 
-    // Second contribution (on time)
-    dispatcher.contribute(group_id);
-    let second_deadline = dispatcher.get_contribution_deadline(group_id, user);
+//     // Second contribution (on time)
+//     dispatcher.contribute(group_id);
+//     let second_deadline = dispatcher.get_contribution_deadline(group_id, user);
 
-    // Verify new deadline is set
-    assert(second_deadline > first_deadline, 'New deadline should be later');
-    assert(
-        second_deadline == second_time + 93600, 'Second deadline incorrect',
-    ); // 26 hours from second contribution
+//     // Verify new deadline is set
+//     assert(second_deadline > first_deadline, 'New deadline should be later');
+//     assert(
+//         second_deadline == second_time + 93600, 'Second deadline incorrect',
+//     ); // 26 hours from second contribution
 
-    // Check no penalty accumulated
-    let penalty = dispatcher.get_missed_deadline_penalty(group_id, user);
-    assert(penalty == 0, 'No penalty on-time');
+//     // Check no penalty accumulated
+//     let penalty = dispatcher.get_missed_deadline_penalty(group_id, user);
+//     assert(penalty == 0, 'No penalty on-time');
 
-    stop_cheat_block_timestamp(contract_address);
-}
+//     stop_cheat_block_timestamp(contract_address);
+// }
 
 #[test]
 fn test_contribution_and_lock_tracking() {

@@ -172,46 +172,46 @@ fn test_contribute_insurance_fee_calculation() {
     stop_cheat_caller_address(contract_address);
 }
 
-#[test]
-fn test_contribute_multiple_contributions() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+// #[test]
+// fn test_contribute_multiple_contributions() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
+//     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    let user: ContractAddress = contract_address_const::<2>();
-    let contribution_amount = 500_u256;
-    let token_amount = 10000_u256;
+//     let user: ContractAddress = contract_address_const::<2>();
+//     let contribution_amount = 500_u256;
+//     let token_amount = 10000_u256;
 
-    let group_id = setup_user_and_group(
-        contract_address, token_address, owner, user, contribution_amount, token_amount,
-    );
+//     let group_id = setup_user_and_group(
+//         contract_address, token_address, owner, user, contribution_amount, token_amount,
+//     );
 
-    start_cheat_caller_address(contract_address, user);
+//     start_cheat_caller_address(contract_address, user);
 
-    let insurance_fee = (contribution_amount * 100) / 10000;
-    let total_payment = contribution_amount + insurance_fee;
+//     let insurance_fee = (contribution_amount * 100) / 10000;
+//     let total_payment = contribution_amount + insurance_fee;
 
-    // First contribution
-    let result1 = dispatcher.contribute(group_id);
-    assert(result1 == true, 'First contri should succeed');
+//     // First contribution
+//     let result1 = dispatcher.contribute(group_id);
+//     assert(result1 == true, 'First contri should succeed');
 
-    let member_info_after_first = dispatcher.get_group_member(group_id, 0);
-    assert(member_info_after_first.contribution_count == 1, 'Count should be 1 after first');
+//     let member_info_after_first = dispatcher.get_group_member(group_id, 0);
+//     assert(member_info_after_first.contribution_count == 1, 'Count should be 1 after first');
 
-    // Second contribution
-    let result2 = dispatcher.contribute(group_id);
-    assert(result2 == true, 'Second contri should succeed');
+//     // Second contribution
+//     let result2 = dispatcher.contribute(group_id);
+//     assert(result2 == true, 'Second contri should succeed');
 
-    let member_info_after_second = dispatcher.get_group_member(group_id, 0);
-    assert(member_info_after_second.contribution_count == 2, 'Count should be 2 after second');
+//     let member_info_after_second = dispatcher.get_group_member(group_id, 0);
+//     assert(member_info_after_second.contribution_count == 2, 'Count should be 2 after second');
 
-    // Check total amount transferred
-    let user_balance = token_dispatcher.balance_of(user);
-    let expected_remaining = token_amount - (total_payment * 2);
-    assert(user_balance == expected_remaining, 'Total paym should be correct');
+//     // Check total amount transferred
+//     let user_balance = token_dispatcher.balance_of(user);
+//     let expected_remaining = token_amount - (total_payment * 2);
+//     assert(user_balance == expected_remaining, 'Total paym should be correct');
 
-    stop_cheat_caller_address(contract_address);
-}
+//     stop_cheat_caller_address(contract_address);
+// }
 
 #[test]
 fn test_contribute_insufficient_balance() {

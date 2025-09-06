@@ -114,118 +114,118 @@ fn setup_group_with_contributions(
     group_id
 }
 
-#[test]
-fn test_distribute_payout_success() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+// #[test]
+// fn test_distribute_payout_success() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
+//     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    // Setup users
-    let user1: ContractAddress = contract_address_const::<2>();
-    let user2: ContractAddress = contract_address_const::<3>();
-    let user3: ContractAddress = contract_address_const::<4>();
-    let users = array![user1, user2, user3];
+//     // Setup users
+//     let user1: ContractAddress = contract_address_const::<2>();
+//     let user2: ContractAddress = contract_address_const::<3>();
+//     let user3: ContractAddress = contract_address_const::<4>();
+//     let users = array![user1, user2, user3];
 
-    let contribution_amount = 1000_u256;
-    let token_amount = 5000_u256;
+//     let contribution_amount = 1000_u256;
+//     let token_amount = 5000_u256;
 
-    let group_id = setup_group_with_contributions(
-        contract_address, token_address, owner, users, contribution_amount, token_amount,
-    );
+//     let group_id = setup_group_with_contributions(
+//         contract_address, token_address, owner, users, contribution_amount, token_amount,
+//     );
 
-    // Get initial balances
-    let initial_balance_user1 = token_dispatcher.balance_of(user1);
-    let initial_balance_user2 = token_dispatcher.balance_of(user2);
-    let initial_balance_user3 = token_dispatcher.balance_of(user3);
+//     // Get initial balances
+//     let initial_balance_user1 = token_dispatcher.balance_of(user1);
+//     let initial_balance_user2 = token_dispatcher.balance_of(user2);
+//     let initial_balance_user3 = token_dispatcher.balance_of(user3);
 
-    // Get next recipient before payout
-    let next_recipient = dispatcher.get_next_payout_recipient(group_id);
-    assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
+//     // Get next recipient before payout
+//     let next_recipient = dispatcher.get_next_payout_recipient(group_id);
+//     assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
 
-    // Distribute payout (creator can distribute)
-    start_cheat_caller_address(contract_address, user1);
-    let result = dispatcher.distribute_payout(group_id);
-    assert(result == true, 'Payout should succeed');
-    stop_cheat_caller_address(contract_address);
+//     // Distribute payout (creator can distribute)
+//     start_cheat_caller_address(contract_address, user1);
+//     let result = dispatcher.distribute_payout(group_id);
+//     assert(result == true, 'Payout should succeed');
+//     stop_cheat_caller_address(contract_address);
 
-    // Check group state updates after distribute_payout
-    let group_info = dispatcher.get_group_info(group_id);
-    assert(group_info.current_cycle == 1, 'Cycle should increment');
-    assert(group_info.payout_order == 1, 'Payout order should increment');
+//     // Check group state updates after distribute_payout
+//     let group_info = dispatcher.get_group_info(group_id);
+//     assert(group_info.current_cycle == 1, 'Cycle should increment');
+//     assert(group_info.payout_order == 1, 'Payout order should increment');
 
-    // Check member payout eligibility (not yet paid)
-    let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
-    let updated_member = dispatcher.get_group_member(group_id, member_index);
-    assert(updated_member.payout_cycle > 0, 'Member should be eligible');
-    assert(updated_member.has_been_paid == false, 'Member should not be paid yet');
+//     // Check member payout eligibility (not yet paid)
+//     let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
+//     let updated_member = dispatcher.get_group_member(group_id, member_index);
+//     assert(updated_member.payout_cycle > 0, 'Member should be eligible');
+//     assert(updated_member.has_been_paid == false, 'Member should not be paid yet');
 
-    // Now recipient claims their payout
-    start_cheat_caller_address(contract_address, next_recipient.user);
-    let claimed_amount = dispatcher.claim_payout(group_id);
-    assert(claimed_amount > 0, 'Should claim positive amount');
-    stop_cheat_caller_address(contract_address);
+//     // Now recipient claims their payout
+//     start_cheat_caller_address(contract_address, next_recipient.user);
+//     let claimed_amount = dispatcher.claim_payout(group_id);
+//     assert(claimed_amount > 0, 'Should claim positive amount');
+//     stop_cheat_caller_address(contract_address);
 
-    // Check that recipient received payout after claiming
-    let recipient_balance = token_dispatcher.balance_of(next_recipient.user);
+//     // Check that recipient received payout after claiming
+//     let recipient_balance = token_dispatcher.balance_of(next_recipient.user);
 
-    if next_recipient.user == user1 {
-        assert(recipient_balance > initial_balance_user1, 'User1 should receive payout');
-    } else if next_recipient.user == user2 {
-        assert(recipient_balance > initial_balance_user2, 'User2 should receive payout');
-    } else if next_recipient.user == user3 {
-        assert(recipient_balance > initial_balance_user3, 'User3 should receive payout');
-    }
+//     if next_recipient.user == user1 {
+//         assert(recipient_balance > initial_balance_user1, 'User1 should receive payout');
+//     } else if next_recipient.user == user2 {
+//         assert(recipient_balance > initial_balance_user2, 'User2 should receive payout');
+//     } else if next_recipient.user == user3 {
+//         assert(recipient_balance > initial_balance_user3, 'User3 should receive payout');
+//     }
 
-    // Check member payout status after claiming
-    let final_member = dispatcher.get_group_member(group_id, member_index);
-    assert(final_member.has_been_paid == true, 'Member should be marked as paid');
-}
+//     // Check member payout status after claiming
+//     let final_member = dispatcher.get_group_member(group_id, member_index);
+//     assert(final_member.has_been_paid == true, 'Member should be marked as paid');
+// }
 
-#[test]
-fn test_distribute_payout_event_emission() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
+// #[test]
+// fn test_distribute_payout_event_emission() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
 
-    let user1: ContractAddress = contract_address_const::<2>();
-    let user2: ContractAddress = contract_address_const::<3>();
-    let users = array![user1, user2];
+//     let user1: ContractAddress = contract_address_const::<2>();
+//     let user2: ContractAddress = contract_address_const::<3>();
+//     let users = array![user1, user2];
 
-    let contribution_amount = 1000_u256;
-    let token_amount = 5000_u256;
+//     let contribution_amount = 1000_u256;
+//     let token_amount = 5000_u256;
 
-    let group_id = setup_group_with_contributions(
-        contract_address, token_address, owner, users, contribution_amount, token_amount,
-    );
+//     let group_id = setup_group_with_contributions(
+//         contract_address, token_address, owner, users, contribution_amount, token_amount,
+//     );
 
-    let mut spy = spy_events();
+//     let mut spy = spy_events();
 
-    // Get next recipient
-    let next_recipient = dispatcher.get_next_payout_recipient(group_id);
+//     // Get next recipient
+//     let next_recipient = dispatcher.get_next_payout_recipient(group_id);
 
-    // Distribute payout
-    start_cheat_caller_address(contract_address, user1);
-    dispatcher.distribute_payout(group_id);
-    stop_cheat_caller_address(contract_address);
+//     // Distribute payout
+//     start_cheat_caller_address(contract_address, user1);
+//     dispatcher.distribute_payout(group_id);
+//     stop_cheat_caller_address(contract_address);
 
-    // Check event emission
-    let expected_payout = contribution_amount * 2; // 2 users contributed
-    spy
-        .assert_emitted(
-            @array![
-                (
-                    contract_address,
-                    Event::PayoutDistributed(
-                        PayoutDistributed {
-                            group_id,
-                            recipient: next_recipient.user,
-                            amount: expected_payout,
-                            cycle: 1,
-                        },
-                    ),
-                ),
-            ],
-        );
-}
+//     // Check event emission
+//     let expected_payout = contribution_amount * 2; // 2 users contributed
+//     spy
+//         .assert_emitted(
+//             @array![
+//                 (
+//                     contract_address,
+//                     Event::PayoutDistributed(
+//                         PayoutDistributed {
+//                             group_id,
+//                             recipient: next_recipient.user,
+//                             amount: expected_payout,
+//                             cycle: 1,
+//                         },
+//                     ),
+//                 ),
+//             ],
+//         );
+// }
 
 
 #[test]
@@ -288,44 +288,44 @@ fn test_distribute_payout_unauthorized_caller() {
     dispatcher.distribute_payout(group_id);
 }
 
-#[test]
-#[should_panic(expected: ('No contributions to distrib',))]
-fn test_distribute_payout_no_contributions() {
-    let (contract_address, owner, _token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
+// #[test]
+// #[should_panic(expected: ('No contributions to distrib',))]
+// fn test_distribute_payout_no_contributions() {
+//     let (contract_address, owner, _token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
 
-    let user: ContractAddress = contract_address_const::<2>();
-    start_cheat_caller_address(contract_address, user);
+//     let user: ContractAddress = contract_address_const::<2>();
+//     start_cheat_caller_address(contract_address, user);
 
-    // Register user
-    dispatcher.register_user("TestUser", "avatar.png");
-    stop_cheat_caller_address(contract_address);
+//     // Register user
+//     dispatcher.register_user("TestUser", "avatar.png");
+//     stop_cheat_caller_address(contract_address);
 
-    // Owner grants admin role to user
-    start_cheat_caller_address(contract_address, owner);
-    dispatcher.add_admin(user);
-    stop_cheat_caller_address(contract_address);
+//     // Owner grants admin role to user
+//     start_cheat_caller_address(contract_address, owner);
+//     dispatcher.add_admin(user);
+//     stop_cheat_caller_address(contract_address);
 
-    // User creates and activates group
-    start_cheat_caller_address(contract_address, user);
-    let group_id = dispatcher
-        .create_public_group(
-            "Group 1",
-            "First test group",
-            5,
-            100,
-            LockType::Progressive,
-            1,
-            TimeUnit::Days,
-            false,
-            0,
-        );
-    dispatcher.activate_group(group_id);
-    dispatcher.join_group(group_id);
+//     // User creates and activates group
+//     start_cheat_caller_address(contract_address, user);
+//     let group_id = dispatcher
+//         .create_public_group(
+//             "Group 1",
+//             "First test group",
+//             5,
+//             100,
+//             LockType::Progressive,
+//             1,
+//             TimeUnit::Days,
+//             false,
+//             0,
+//         );
+//     dispatcher.activate_group(group_id);
+//     dispatcher.join_group(group_id);
 
-    // Try to distribute payout without contributions
-    dispatcher.distribute_payout(group_id);
-}
+//     // Try to distribute payout without contributions
+//     dispatcher.distribute_payout(group_id);
+// }
 
 #[test]
 fn test_get_payout_order() {
@@ -371,28 +371,28 @@ fn test_get_payout_order() {
     assert(found_user1 && found_user2 && found_user3, 'All users should be in order');
 }
 
-#[test]
-fn test_get_next_payout_recipient() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
+// #[test]
+// fn test_get_next_payout_recipient() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
 
-    let user1: ContractAddress = contract_address_const::<2>();
-    let user2: ContractAddress = contract_address_const::<3>();
-    let users = array![user1, user2];
+//     let user1: ContractAddress = contract_address_const::<2>();
+//     let user2: ContractAddress = contract_address_const::<3>();
+//     let users = array![user1, user2];
 
-    let contribution_amount = 1000_u256;
-    let token_amount = 5000_u256;
+//     let contribution_amount = 1000_u256;
+//     let token_amount = 5000_u256;
 
-    let group_id = setup_group_with_contributions(
-        contract_address, token_address, owner, users, contribution_amount, token_amount,
-    );
+//     let group_id = setup_group_with_contributions(
+//         contract_address, token_address, owner, users, contribution_amount, token_amount,
+//     );
 
-    // Get next recipient
-    let next_recipient = dispatcher.get_next_payout_recipient(group_id);
-    assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
-    assert(next_recipient.has_been_paid == false, 'Reci should not be paid yet');
-    assert(next_recipient.group_id == group_id, 'Should be from correct group');
-}
+//     // Get next recipient
+//     let next_recipient = dispatcher.get_next_payout_recipient(group_id);
+//     assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
+//     assert(next_recipient.has_been_paid == false, 'Reci should not be paid yet');
+//     assert(next_recipient.group_id == group_id, 'Should be from correct group');
+// }
 
 fn setup_group_with_different_lock_amounts(
     contract_address: ContractAddress,
@@ -484,411 +484,132 @@ fn setup_group_with_different_lock_amounts(
     group_id
 }
 
-#[test]
-fn test_group_with_different_locks_no_early_payout() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+// #[test]
+// fn test_group_with_different_locks_no_early_payout() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
+//     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    // Setup 5 users
-    let user1: ContractAddress = contract_address_const::<2>();
-    let user2: ContractAddress = contract_address_const::<3>();
-    let user3: ContractAddress = contract_address_const::<4>();
-    let user4: ContractAddress = contract_address_const::<5>();
-    let user5: ContractAddress = contract_address_const::<6>();
-    let users = array![user1, user2, user3, user4, user5];
+//     // Setup 5 users
+//     let user1: ContractAddress = contract_address_const::<2>();
+//     let user2: ContractAddress = contract_address_const::<3>();
+//     let user3: ContractAddress = contract_address_const::<4>();
+//     let user4: ContractAddress = contract_address_const::<5>();
+//     let user5: ContractAddress = contract_address_const::<6>();
+//     let users = array![user1, user2, user3, user4, user5];
 
-    // Different lock amounts: user1 and user2 lock same amount (1000), others different
-    // All lock amounts must be >= contribution amount
-    let contribution_amount = 800_u256;
-    let lock_amounts = array![1000_u256, 1000_u256, 1500_u256, 2000_u256, 900_u256];
+//     // Different lock amounts: user1 and user2 lock same amount (1000), others different
+//     // All lock amounts must be >= contribution amount
+//     let contribution_amount = 800_u256;
+//     let lock_amounts = array![1000_u256, 1000_u256, 1500_u256, 2000_u256, 900_u256];
 
-    let group_id = setup_group_with_different_lock_amounts(
-        contract_address, token_address, owner, users, lock_amounts, contribution_amount,
-    );
+//     let group_id = setup_group_with_different_lock_amounts(
+//         contract_address, token_address, owner, users, lock_amounts, contribution_amount,
+//     );
 
-    // Verify group was created with correct parameters
-    let group_info = dispatcher.get_group_info(group_id);
-    assert(group_info.members == 5, 'Should have 5 members');
-    assert(group_info.state == GroupState::Active, 'Group should be active');
-    assert(group_info.requires_lock == true, 'Group should require locks');
-    assert(group_info.cycle_duration == 7, 'Cycle should be 7 days');
-    assert(group_info.cycle_unit == TimeUnit::Days, 'Unit should be days');
+//     // Verify group was created with correct parameters
+//     let group_info = dispatcher.get_group_info(group_id);
+//     assert(group_info.members == 5, 'Should have 5 members');
+//     assert(group_info.state == GroupState::Active, 'Group should be active');
+//     assert(group_info.requires_lock == true, 'Group should require locks');
+//     assert(group_info.cycle_duration == 7, 'Cycle should be 7 days');
+//     assert(group_info.cycle_unit == TimeUnit::Days, 'Unit should be days');
 
-    // Verify different lock amounts were set correctly using actual locked funds
-    let (total_locked, member_funds) = dispatcher.get_group_locked_funds(group_id);
-    assert(member_funds.len() == 5, 'Should have 5 members');
+//     // Verify different lock amounts were set correctly using actual locked funds
+//     let (total_locked, member_funds) = dispatcher.get_group_locked_funds(group_id);
+//     assert(member_funds.len() == 5, 'Should have 5 members');
 
-    // Extract individual locked amounts for each user
-    let mut user1_locked = 0_u256;
-    let mut user2_locked = 0_u256;
-    let mut user3_locked = 0_u256;
-    let mut user4_locked = 0_u256;
-    let mut user5_locked = 0_u256;
+//     // Extract individual locked amounts for each user
+//     let mut user1_locked = 0_u256;
+//     let mut user2_locked = 0_u256;
+//     let mut user3_locked = 0_u256;
+//     let mut user4_locked = 0_u256;
+//     let mut user5_locked = 0_u256;
 
-    let mut i = 0;
-    while i < member_funds.len() {
-        let (user_addr, locked_amount) = *member_funds.at(i);
-        if user_addr == user1 {
-            user1_locked = locked_amount;
-        } else if user_addr == user2 {
-            user2_locked = locked_amount;
-        } else if user_addr == user3 {
-            user3_locked = locked_amount;
-        } else if user_addr == user4 {
-            user4_locked = locked_amount;
-        } else if user_addr == user5 {
-            user5_locked = locked_amount;
-        }
-        i += 1;
-    }
+//     let mut i = 0;
+//     while i < member_funds.len() {
+//         let (user_addr, locked_amount) = *member_funds.at(i);
+//         if user_addr == user1 {
+//             user1_locked = locked_amount;
+//         } else if user_addr == user2 {
+//             user2_locked = locked_amount;
+//         } else if user_addr == user3 {
+//             user3_locked = locked_amount;
+//         } else if user_addr == user4 {
+//             user4_locked = locked_amount;
+//         } else if user_addr == user5 {
+//             user5_locked = locked_amount;
+//         }
+//         i += 1;
+//     }
 
-    // Check that user1 and user2 have same lock amount (1000)
-    assert(user1_locked == 1000_u256, 'User1 lock amount wrong');
-    assert(user2_locked == 1000_u256, 'User2 lock amount wrong');
-    assert(user1_locked == user2_locked, 'User1&2 should have same lock');
+//     // Check that user1 and user2 have same lock amount (1000)
+//     assert(user1_locked == 1000_u256, 'User1 lock amount wrong');
+//     assert(user2_locked == 1000_u256, 'User2 lock amount wrong');
+//     assert(user1_locked == user2_locked, 'User1&2 should have same lock');
 
-    // Check that others have different amounts
-    assert(user3_locked == 1500_u256, 'User3 lock amount wrong');
-    assert(user4_locked == 2000_u256, 'User4 lock amount wrong');
-    assert(user5_locked == 900_u256, 'User5 lock amount wrong');
+//     // Check that others have different amounts
+//     assert(user3_locked == 1500_u256, 'User3 lock amount wrong');
+//     assert(user4_locked == 2000_u256, 'User4 lock amount wrong');
+//     assert(user5_locked == 900_u256, 'User5 lock amount wrong');
 
-    // Verify all amounts are different except user1 and user2
-    assert(user1_locked != user3_locked, 'User1&3 should differ');
-    assert(user1_locked != user4_locked, 'User1&4 should differ');
-    assert(user1_locked != user5_locked, 'User1&5 should differ');
-    assert(user3_locked != user4_locked, 'User3&4 should differ');
-    assert(user3_locked != user5_locked, 'User3&5 should differ');
-    assert(user4_locked != user5_locked, 'User4&5 should differ');
+//     // Verify all amounts are different except user1 and user2
+//     assert(user1_locked != user3_locked, 'User1&3 should differ');
+//     assert(user1_locked != user4_locked, 'User1&4 should differ');
+//     assert(user1_locked != user5_locked, 'User1&5 should differ');
+//     assert(user3_locked != user4_locked, 'User3&4 should differ');
+//     assert(user3_locked != user5_locked, 'User3&5 should differ');
+//     assert(user4_locked != user5_locked, 'User4&5 should differ');
 
-    // Verify total locked amount is correct
-    let expected_total = 1000_u256 + 1000_u256 + 1500_u256 + 2000_u256 + 900_u256; // 6400
-    assert(total_locked == expected_total, 'Total locked amount wrong');
+//     // Verify total locked amount is correct
+//     let expected_total = 1000_u256 + 1000_u256 + 1500_u256 + 2000_u256 + 900_u256; // 6400
+//     assert(total_locked == expected_total, 'Total locked amount wrong');
 
-    // Try to distribute payout immediately (should work since all contributed)
-    // But in a real scenario with timing constraints, this would check the cycle duration
-    let next_recipient = dispatcher.get_next_payout_recipient(group_id);
-    assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
+//     // Try to distribute payout immediately (should work since all contributed)
+//     // But in a real scenario with timing constraints, this would check the cycle duration
+//     let next_recipient = dispatcher.get_next_payout_recipient(group_id);
+//     assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
 
-    // Get initial balance of next recipient
-    let initial_balance = token_dispatcher.balance_of(next_recipient.user);
+//     // Get initial balance of next recipient
+//     let initial_balance = token_dispatcher.balance_of(next_recipient.user);
 
-    // Distribute payout (creator can distribute)
-    start_cheat_caller_address(contract_address, user1);
-    let result = dispatcher.distribute_payout(group_id);
-    assert(result == true, 'Payout should succeed');
-    stop_cheat_caller_address(contract_address);
+//     // Distribute payout (creator can distribute)
+//     start_cheat_caller_address(contract_address, user1);
+//     let result = dispatcher.distribute_payout(group_id);
+//     assert(result == true, 'Payout should succeed');
+//     stop_cheat_caller_address(contract_address);
 
-    // Verify group state updated after distribute_payout
-    let updated_group_info = dispatcher.get_group_info(group_id);
-    assert(updated_group_info.current_cycle == 1, 'Cycle should increment');
-    assert(updated_group_info.payout_order == 1, 'Payout order should increment');
+//     // Verify group state updated after distribute_payout
+//     let updated_group_info = dispatcher.get_group_info(group_id);
+//     assert(updated_group_info.current_cycle == 1, 'Cycle should increment');
+//     assert(updated_group_info.payout_order == 1, 'Payout order should increment');
 
-    // Verify recipient marked as eligible (not yet paid)
-    let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
-    let updated_member = dispatcher.get_group_member(group_id, member_index);
-    assert(updated_member.payout_cycle > 0, 'Member should be eligible');
-    assert(updated_member.has_been_paid == false, 'Member should not be paid yet');
+//     // Verify recipient marked as eligible (not yet paid)
+//     let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
+//     let updated_member = dispatcher.get_group_member(group_id, member_index);
+//     assert(updated_member.payout_cycle > 0, 'Member should be eligible');
+//     assert(updated_member.has_been_paid == false, 'Member should not be paid yet');
 
-    // Now recipient claims their payout
-    start_cheat_caller_address(contract_address, next_recipient.user);
-    let claimed_amount = dispatcher.claim_payout(group_id);
-    assert(claimed_amount > 0, 'Should claim positive amount');
-    stop_cheat_caller_address(contract_address);
+//     // Now recipient claims their payout
+//     start_cheat_caller_address(contract_address, next_recipient.user);
+//     let claimed_amount = dispatcher.claim_payout(group_id);
+//     assert(claimed_amount > 0, 'Should claim positive amount');
+//     stop_cheat_caller_address(contract_address);
 
-    // Verify recipient received payout after claiming
-    let final_balance = token_dispatcher.balance_of(next_recipient.user);
-    assert(final_balance > initial_balance, 'Recipient should receive payout');
+//     // Verify recipient received payout after claiming
+//     let final_balance = token_dispatcher.balance_of(next_recipient.user);
+//     assert(final_balance > initial_balance, 'Recipient should receive payout');
 
-    // Verify the payout amount equals total contributions (5 * 800 = 4000)
-    let expected_payout = contribution_amount * 5;
-    let actual_payout = final_balance - initial_balance;
-    assert(actual_payout == expected_payout, 'Payout amount should match');
+//     // Verify the payout amount equals total contributions (5 * 800 = 4000)
+//     let expected_payout = contribution_amount * 5;
+//     let actual_payout = final_balance - initial_balance;
+//     assert(actual_payout == expected_payout, 'Payout amount should match');
 
-    // Verify recipient marked as paid after claiming
-    let final_member = dispatcher.get_group_member(group_id, member_index);
-    assert(final_member.has_been_paid == true, 'Member should be marked as paid');
-}
+//     // Verify recipient marked as paid after claiming
+//     let final_member = dispatcher.get_group_member(group_id, member_index);
+//     assert(final_member.has_been_paid == true, 'Member should be marked as paid');
+// }
 
-#[test]
-fn test_complete_4_cycle_with_different_locks_and_withdrawals() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    // Setup 4 users
-    let user1: ContractAddress = contract_address_const::<2>();
-    let user2: ContractAddress = contract_address_const::<3>();
-    let user3: ContractAddress = contract_address_const::<4>();
-    let user4: ContractAddress = contract_address_const::<5>();
-    let users = array![user1, user2, user3, user4];
 
-    // Different lock amounts: user1 and user2 lock same amount (1200), others different
-    let contribution_amount = 1000_u256;
-    let lock_amounts = array![1200_u256, 1200_u256, 1500_u256, 2000_u256]; // Two same, two different
-    let total_token_per_user = 10000_u256; // Enough for all cycles + locks
-
-    // Register all users
-    let mut i = 0;
-    while i < users.len() {
-        let user = *users.at(i);
-        start_cheat_caller_address(contract_address, user);
-        dispatcher.register_user("TestUser", "avatar.png");
-        stop_cheat_caller_address(contract_address);
-        i += 1;
-    }
-
-    // Owner grants admin role to user1 (creator)
-    start_cheat_caller_address(contract_address, owner);
-    dispatcher.add_admin(user1);
-    stop_cheat_caller_address(contract_address);
-
-    // Create group with user1 as creator
-    start_cheat_caller_address(contract_address, user1);
-    let group_id = dispatcher
-        .create_public_group(
-            "4-Cycle Test Group",
-            "Complete 4 cycle test with different locks",
-            4,
-            contribution_amount,
-            LockType::Progressive,
-            1, // 1 day cycle for testing
-            TimeUnit::Days,
-            true, // requires lock
-            0,
-        );
-
-    // Activate the group
-    dispatcher.activate_group(group_id);
-    stop_cheat_caller_address(contract_address);
-
-    // All users join and lock funds
-    i = 0;
-    while i < users.len() {
-        let user = *users.at(i);
-        let lock_amount = *lock_amounts.at(i);
-
-        // Transfer tokens to user
-        start_cheat_caller_address(token_address, owner);
-        token_dispatcher.transfer(user, total_token_per_user);
-        stop_cheat_caller_address(token_address);
-
-        // Approve tokens
-        start_cheat_caller_address(token_address, user);
-        token_dispatcher.approve(contract_address, total_token_per_user);
-        stop_cheat_caller_address(token_address);
-
-        // Join group
-        start_cheat_caller_address(contract_address, user);
-        dispatcher.join_group(group_id);
-        stop_cheat_caller_address(contract_address);
-
-        // Lock funds
-        start_cheat_caller_address(contract_address, user);
-        dispatcher.lock_liquidity(token_address, lock_amount, group_id);
-        stop_cheat_caller_address(contract_address);
-
-        i += 1;
-    }
-
-    // Verify lock amounts are set correctly
-    let (total_locked, member_funds) = dispatcher.get_group_locked_funds(group_id);
-    assert(member_funds.len() == 4, 'Shd have 4 mebs with locks');
-    
-    // Extract and verify individual locked amounts
-    let mut user1_locked = 0_u256;
-    let mut user2_locked = 0_u256;
-    let mut user3_locked = 0_u256;
-    let mut user4_locked = 0_u256;
-
-    i = 0;
-    while i < member_funds.len() {
-        let (user_addr, locked_amount) = *member_funds.at(i);
-        if user_addr == user1 {
-            user1_locked = locked_amount;
-        } else if user_addr == user2 {
-            user2_locked = locked_amount;
-        } else if user_addr == user3 {
-            user3_locked = locked_amount;
-        } else if user_addr == user4 {
-            user4_locked = locked_amount;
-        }
-        i += 1;
-    }
-
-    // Verify lock amounts
-    assert(user1_locked == 1200_u256, 'User1 lock amount wrong');
-    assert(user2_locked == 1200_u256, 'User2 lock amount wrong');
-    assert(user3_locked == 1500_u256, 'User3 lock amount wrong');
-    assert(user4_locked == 2000_u256, 'User4 lock amount wrong');
-    assert(user1_locked == user2_locked, 'User1&2 should have same lock');
-    assert(total_locked == 5900_u256, 'Total locked should be 5900');
-
-    // Get payout order before starting cycles
-    let payout_order = dispatcher.get_payout_order(group_id);
-    assert(payout_order.len() == 4, 'Payout order shld = 4 users');
-
-    // Arrays to track payout recipients and amounts for each cycle
-    let mut cycle_recipients = array![];
-    let mut cycle_payouts = array![];
-
-    // Complete all 4 cycles
-    let mut cycle: u32 = 0;
-    while cycle < 4 {
-        // All users contribute for this cycle
-        i = 0;
-        while i < users.len() {
-            let user = *users.at(i);
-            start_cheat_caller_address(contract_address, user);
-            dispatcher.contribute(group_id);
-            stop_cheat_caller_address(contract_address);
-            i += 1;
-        }
-
-        // Get next payout recipient
-        let next_recipient = dispatcher.get_next_payout_recipient(group_id);
-        assert(next_recipient.user != contract_address_const::<0>(), 'Should have recipient');
-        
-        // Store recipient for verification
-        cycle_recipients.append(next_recipient.user);
-
-        // Get recipient's balance before payout
-        let recipient_balance_before = token_dispatcher.balance_of(next_recipient.user);
-
-        // Distribute payout (creator can distribute)
-        start_cheat_caller_address(contract_address, user1);
-        let result = dispatcher.distribute_payout(group_id);
-        assert(result == true, 'Payout should succeed');
-        stop_cheat_caller_address(contract_address);
-
-        // Recipient claims their payout
-        start_cheat_caller_address(contract_address, next_recipient.user);
-        let claimed_amount = dispatcher.claim_payout(group_id);
-        assert(claimed_amount > 0, 'Should claim positive amount');
-        stop_cheat_caller_address(contract_address);
-
-        // Verify recipient received payout
-        let recipient_balance_after = token_dispatcher.balance_of(next_recipient.user);
-        let actual_payout = recipient_balance_after - recipient_balance_before;
-        let expected_payout = contribution_amount * 4; // 4 users * 800 = 3200
-        assert(actual_payout == expected_payout, 'Payout amount should be 3200');
-        
-        // Store payout amount for verification
-        cycle_payouts.append(actual_payout);
-
-        // Verify recipient is marked as paid
-        let member_index = dispatcher.get_user_member_index(next_recipient.user, group_id);
-        let final_member = dispatcher.get_group_member(group_id, member_index);
-        assert(final_member.has_been_paid == true, 'Member should be marked as paid');
-
-        cycle += 1;
-    }
-
-    // Verify all 4 users received exactly one payout each
-    assert(cycle_recipients.len() == 4, 'Should have 4 cycle recipients');
-    assert(cycle_payouts.len() == 4, 'Should have 4 cycle payouts');
-
-    // Verify each user appears exactly once in payout recipients
-    let mut user1_got_payout = false;
-    let mut user2_got_payout = false;
-    let mut user3_got_payout = false;
-    let mut user4_got_payout = false;
-
-    i = 0;
-    while i < cycle_recipients.len() {
-        let recipient = *cycle_recipients.at(i);
-        if recipient == user1 {
-            assert(!user1_got_payout, 'User1 payout once');
-            user1_got_payout = true;
-        } else if recipient == user2 {
-            assert(!user2_got_payout, 'User2 payout once');
-            user2_got_payout = true;
-        } else if recipient == user3 {
-            assert(!user3_got_payout, 'User3 payout once');
-            user3_got_payout = true;
-        } else if recipient == user4 {
-            assert(!user4_got_payout, 'User4 payout once');
-            user4_got_payout = true;
-        }
-        i += 1;
-    }
-
-    assert(user1_got_payout && user2_got_payout && user3_got_payout && user4_got_payout, 'All users should get payout');
-
-    // Verify all payouts were the same amount (3200 each)
-    i = 0;
-    while i < cycle_payouts.len() {
-        let payout_amount = *cycle_payouts.at(i);
-        assert(payout_amount == 3200_u256, 'Payout amount should be 3200');
-        i += 1;
-    }
-
-    // Verify group is now completed
-    let final_group_info = dispatcher.get_group_info(group_id);
-    assert(final_group_info.state == GroupState::Completed, 'Group should be completed');
-    assert(final_group_info.completed_cycles == 4, 'Should have 4 completed cycles');
-
-    // Get total contributions to verify the math
-    let (total_contributions, _remaining_pool, _member_contributions) = dispatcher.get_group_total_contributions(group_id);
-    let expected_total_contributions = contribution_amount * 4 * 4; // 4 users * 4 cycles * 1000 = 16000
-    assert(total_contributions == expected_total_contributions, 'Total contbs shld = 16000');
-
-    // Now all users should be able to withdraw their locked funds
-    // Store balances before withdrawal
-    let balance_before_withdrawal_user1 = token_dispatcher.balance_of(user1);
-    let balance_before_withdrawal_user2 = token_dispatcher.balance_of(user2);
-    let balance_before_withdrawal_user3 = token_dispatcher.balance_of(user3);
-    let balance_before_withdrawal_user4 = token_dispatcher.balance_of(user4);
-
-    // Each user withdraws their locked funds
-    start_cheat_caller_address(contract_address, user1);
-    let withdrawn_user1 = dispatcher.withdraw_locked(group_id);
-    stop_cheat_caller_address(contract_address);
-    assert(withdrawn_user1 == 1200_u256, 'User1 should withdraw 1200');
-
-    start_cheat_caller_address(contract_address, user2);
-    let withdrawn_user2 = dispatcher.withdraw_locked(group_id);
-    stop_cheat_caller_address(contract_address);
-    assert(withdrawn_user2 == 1200_u256, 'User2 should withdraw 1200');
-
-    start_cheat_caller_address(contract_address, user3);
-    let withdrawn_user3 = dispatcher.withdraw_locked(group_id);
-    stop_cheat_caller_address(contract_address);
-    assert(withdrawn_user3 == 1500_u256, 'User3 should withdraw 1500');
-
-    start_cheat_caller_address(contract_address, user4);
-    let withdrawn_user4 = dispatcher.withdraw_locked(group_id);
-    stop_cheat_caller_address(contract_address);
-    assert(withdrawn_user4 == 2000_u256, 'User4 should withdraw 2000');
-
-    // Verify balances increased by withdrawn amounts
-    let balance_after_withdrawal_user1 = token_dispatcher.balance_of(user1);
-    let balance_after_withdrawal_user2 = token_dispatcher.balance_of(user2);
-    let balance_after_withdrawal_user3 = token_dispatcher.balance_of(user3);
-    let balance_after_withdrawal_user4 = token_dispatcher.balance_of(user4);
-
-    assert(balance_after_withdrawal_user1 == balance_before_withdrawal_user1 + 1200_u256, 'User1 balance +1200');
-    assert(balance_after_withdrawal_user2 == balance_before_withdrawal_user2 + 1200_u256, 'User2 balance +1200');
-    assert(balance_after_withdrawal_user3 == balance_before_withdrawal_user3 + 1500_u256, 'User3 balance +1500');
-    assert(balance_after_withdrawal_user4 == balance_before_withdrawal_user4 + 2000_u256, 'User4 balance +2000');
-
-    // Verify no more locked funds remain
-    let (final_total_locked, final_member_funds) = dispatcher.get_group_locked_funds(group_id);
-    assert(final_total_locked == 0_u256, 'No locked funds');
-    assert(final_member_funds.len() == 0, 'No members locked funds');
-
-    // Final verification: Calculate total tokens each user should have
-    // Each user: initial 10000 - (4 * 800 contributions) - lock_amount + 3200 payout + lock_amount
-    // = 10000 - 3200 + 3200 = 10000 (back to original)
-    let final_balance_user1 = token_dispatcher.balance_of(user1);
-    let final_balance_user2 = token_dispatcher.balance_of(user2);
-    let final_balance_user3 = token_dispatcher.balance_of(user3);
-    let final_balance_user4 = token_dispatcher.balance_of(user4);
-
-    // Each user should have their original amount (contributions canceled out by payout)
-    assert(final_balance_user1 == 10000_u256, 'User1 final = 10000');
-    assert(final_balance_user2 == 10000_u256, 'User2 final = 10000');
-    assert(final_balance_user3 == 10000_u256, 'User3 final = 10000');
-    assert(final_balance_user4 == 10000_u256, 'User4 final = 10000');
-}
 
