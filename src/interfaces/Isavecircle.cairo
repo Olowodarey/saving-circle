@@ -54,9 +54,7 @@ pub trait Isavecircle<TContractState> {
         self: @TContractState, user_address: ContractAddress,
     ) -> Array<UserGroupDetails>;
 
-    fn get_user_activities(
-        self: @TContractState, user_address: ContractAddress, limit: u32,
-    ) -> Array<UserActivity>;
+
 
     fn get_user_statistics(self: @TContractState, user_address: ContractAddress) -> UserStatistics;
 
@@ -68,7 +66,6 @@ pub trait Isavecircle<TContractState> {
     fn get_locked_balance(self: @TContractState, user: ContractAddress) -> u256;
     // Withdrawal functions - only callable at end of cycle
     fn withdraw_locked(ref self: TContractState, group_id: u256) -> u256;
-    fn get_penalty_locked(self: @TContractState, user: ContractAddress, group_id: u256) -> u256;
     fn has_completed_circle(self: @TContractState, user: ContractAddress, group_id: u256) -> bool;
     fn contribute(ref self: TContractState, group_id: u256) -> bool;
 
@@ -93,10 +90,11 @@ pub trait Isavecircle<TContractState> {
     fn get_contribution_deadline(
         self: @TContractState, group_id: u256, user: ContractAddress,
     ) -> u64;
-    fn get_missed_deadline_penalty(
+ 
+
+    fn get_deadline_info(
         self: @TContractState, group_id: u256, user: ContractAddress,
-    ) -> u256;
-    fn get_time_until_deadline(self: @TContractState, group_id: u256, user: ContractAddress) -> u64;
+    ) -> (u64, u64, u256, bool);
     fn track_missed_deadline_penalty(
         ref self: TContractState, group_id: u256, user: ContractAddress, penalty_amount: u256,
     ) -> bool;

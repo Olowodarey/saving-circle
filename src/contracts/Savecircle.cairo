@@ -928,23 +928,37 @@ pub mod SaveCircle {
             let current_cycle_total = self.cycle_total_contributions.read((group_id, current_cycle));
             self.cycle_total_contributions.write((group_id, current_cycle), current_cycle_total + contribution_amount);
 
-            // Set next contribution deadline based on group cycle with strict timing
-            // Daily: 26 hours (2-hour buffer before late penalty)
-            // Weekly: 7 days (1-day buffer before late penalty)
-            // Monthly: 30 days (2-day buffer before late penalty)
+            // Set contribution deadline with grace period system:
+            // - Users get the FULL cycle duration to contribute
+            // - PLUS additional grace period before penalties apply
+            // Hours: Full duration + 10 minutes grace
+            // Days: Full duration + 2 hours grace  
+            // Weeks: Full duration + 5 hours grace
+            // Months: Full duration + 1 day grace
             let next_deadline = match group_info.cycle_unit {
                 TimeUnit::Hours => {
-                    current_time + (1 * 3600) // 22 hours = 22 * 60 * 60
+                    // Full cycle duration + 10 minutes grace period
+                    let cycle_seconds = group_info.cycle_duration * 3600;
+                    let grace_seconds = 10 * 60; // 10 minutes
+                    current_time + cycle_seconds + grace_seconds
                 },
                 TimeUnit::Days => {
-                    current_time + (26 * 3600) // 22 hours = 22 * 60 * 60
+                    // Full cycle duration + 2 hours grace period
+                    let cycle_seconds = group_info.cycle_duration * 86400;
+                    let grace_seconds = 2 * 3600; // 2 hours
+                    current_time + cycle_seconds + grace_seconds
                 },
                 TimeUnit::Weeks => {
-                    current_time + (7 * 86400 + 5 * 3600) // 6 days = 6 * 24 * 60 * 60 + 2 * 60 * 60
+                    // Full cycle duration + 5 hours grace period
+                    let cycle_seconds = group_info.cycle_duration * 7 * 86400;
+                    let grace_seconds = 5 * 3600; // 5 hours
+                    current_time + cycle_seconds + grace_seconds
                 },
                 TimeUnit::Months => {
-                    current_time
-                        + (30 * 86400 + 24 * 3600) // 28 days = 28 * 24 * 60 * 60 + 2 * 24 * 60 * 60
+                    // Full cycle duration + 1 day grace period
+                    let cycle_seconds = group_info.cycle_duration * 30 * 86400;
+                    let grace_seconds = 24 * 3600; // 1 day
+                    current_time + cycle_seconds + grace_seconds
                 },
             };
 
@@ -1250,27 +1264,7 @@ pub mod SaveCircle {
             groups
         }
 
-        fn get_user_activities(
-            self: @ContractState, user_address: ContractAddress, limit: u32,
-        ) -> Array<UserActivity> {
-            let activity_count = self.user_activity_count.read(user_address);
-            let mut activities = ArrayTrait::new();
-
-            let start_index = if activity_count > limit.into() {
-                activity_count - limit.into()
-            } else {
-                0
-            };
-
-            let mut i = start_index;
-            while i < activity_count {
-                let activity = self.user_activities.read((user_address, i));
-                activities.append(activity);
-                i += 1;
-            }
-
-            activities
-        }
+    
 
         fn get_user_statistics(
             self: @ContractState, user_address: ContractAddress,
@@ -1300,9 +1294,7 @@ pub mod SaveCircle {
         }
 
 
-        fn get_penalty_locked(self: @ContractState, user: ContractAddress, group_id: u256) -> u256 {
-            self._get_penalty_amount(user, group_id)
-        }
+   
 
         fn has_completed_circle(
             self: @ContractState, user: ContractAddress, group_id: u256,
@@ -1323,23 +1315,15 @@ pub mod SaveCircle {
         fn get_current_cycle_contributors(
             self: @ContractState, group_id: u256
         ) -> Array<ContractAddress> {
-            let group_info = self.groups.read(group_id);
-            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
-            
-            let current_cycle = group_info.current_cycle;
+            // Use the unified function and extract just the addresses
+            let (_, contributors_with_amounts) = self.get_cycle_contributors(group_id, self.get_current_cycle(group_id));
             let mut contributors = ArrayTrait::new();
             
-            // Iterate through all group members to check who has contributed
-            let mut member_index: u32 = 0;
-            while member_index < group_info.members {
-                let group_member = self.group_members.read((group_id, member_index));
-                let has_contributed = self.user_cycle_contributions.read((group_id, group_member.user, current_cycle));
-                
-                if has_contributed {
-                    contributors.append(group_member.user);
-                }
-                
-                member_index += 1;
+            let mut i = 0;
+            while i < contributors_with_amounts.len() {
+                let (contributor_address, _) = *contributors_with_amounts.at(i);
+                contributors.append(contributor_address);
+                i += 1;
             };
             
             contributors
@@ -1352,23 +1336,8 @@ pub mod SaveCircle {
             let group_info = self.groups.read(group_id);
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
 
-            let mut total_contributions = 0_u256;
-            let mut member_contributions = ArrayTrait::new();
-            let total_members = group_info.members;
-
-            // Iterate through all members to get their total contributions
-            let mut i = 0_u32;
-            while i < total_members {
-                let group_member = self.group_members.read((group_id, i));
-                if group_member.user != contract_address_const::<0>() {
-                    let member_total_contributed = group_member.total_contributed;
-                    if member_total_contributed > 0 {
-                        total_contributions += member_total_contributed;
-                        member_contributions.append((group_member.user, member_total_contributed));
-                    }
-                }
-                i += 1;
-            }
+            // Use helper function to get member contributions efficiently
+            let (total_contributions, member_contributions) = self._get_member_contributions_summary(group_id);
 
             // Return: (total_contributions, remaining_pool_amount, individual_contributions)
             // remaining_pool_amount shows what's available for payouts/carry-overs
@@ -1551,29 +1520,32 @@ pub mod SaveCircle {
             (total_cycle_contributions, cycle_contributors)
         }
 
-        fn get_contribution_deadline(
+        // Consolidated deadline information function (replaces 3 redundant functions)
+        fn get_deadline_info(
             self: @ContractState, group_id: u256, user: ContractAddress,
-        ) -> u64 {
-            self.contribution_deadlines.read((group_id, user))
-        }
-
-        fn get_missed_deadline_penalty(
-            self: @ContractState, group_id: u256, user: ContractAddress,
-        ) -> u256 {
-            self.missed_deadline_penalties.read((group_id, user))
-        }
-
-        fn get_time_until_deadline(
-            self: @ContractState, group_id: u256, user: ContractAddress,
-        ) -> u64 {
+        ) -> (u64, u64, u256, bool) {
             let deadline = self.contribution_deadlines.read((group_id, user));
             let current_time = get_block_timestamp();
-
-            if current_time >= deadline {
+            let penalty = self.missed_deadline_penalties.read((group_id, user));
+            
+            let time_until_deadline = if current_time >= deadline {
                 0 // Deadline has passed
             } else {
                 deadline - current_time
-            }
+            };
+            
+            let is_overdue = current_time > deadline && deadline != 0;
+            
+            // Returns: (deadline_timestamp, time_until_deadline, penalty_amount, is_overdue)
+            (deadline, time_until_deadline, penalty, is_overdue)
+        }
+        
+        // Keep individual getters for backward compatibility if needed
+        fn get_contribution_deadline(
+            self: @ContractState, group_id: u256, user: ContractAddress,
+        ) -> u64 {
+            let (deadline, _, _, _) = self.get_deadline_info(group_id, user);
+            deadline
         }
 
         fn check_and_apply_deadline_penalty(
@@ -2042,14 +2014,36 @@ pub mod SaveCircle {
         }
 
         fn _reset_cycle_contributions(ref self: ContractState, group_id: u256, new_cycle: u256) {
-            // Reset contribution tracking for all members for the new cycle
+            // Reset comprehensive contribution tracking for all members for the new cycle
             let group_info = self.groups.read(group_id);
             let mut member_index: u32 = 0;
             
+            // Reset cycle totals for the new cycle
+            self.cycle_total_contributions.write((group_id, new_cycle.try_into().unwrap()), 0);
+            self.cycle_contributors_count.write((group_id, new_cycle.try_into().unwrap()), 0);
+            
             while member_index < group_info.members {
                 let group_member = self.group_members.read((group_id, member_index));
-                // Reset the contribution flag for the new cycle
+                
+                // Reset the deprecated boolean flag for backward compatibility
                 self.user_cycle_contributions.write((group_id, group_member.user, new_cycle.try_into().unwrap()), false);
+                
+                // Clear any existing contribution record for the new cycle
+                // (This ensures no stale data from previous cycles)
+                let empty_record = ContributionRecord {
+                    contributor: contract_address_const::<0>(),
+                    group_id: 0,
+                    cycle: 0,
+                    amount: 0,
+                    insurance_fee: 0,
+                    penalty_amount: 0,
+                    total_paid: 0,
+                    timestamp: 0,
+                    is_late: false,
+                    member_index: 0,
+                };
+                self.contribution_records.write((group_id, group_member.user, new_cycle.try_into().unwrap()), empty_record);
+                
                 member_index += 1;
             };
         }
@@ -2088,61 +2082,32 @@ pub mod SaveCircle {
             contribution_record.contributor == user_address && contribution_record.amount > 0
         }
 
-        // ============ DEBUG FUNCTIONS FOR TROUBLESHOOTING ============
+      
 
-        // DEBUG: Get comprehensive contribution status for all members in current cycle
-        fn debug_contribution_status(
-            self: @ContractState, 
-            group_id: u256
-        ) -> (u64, u32, u256, u32) {
+        // Helper function to get member contributions summary (eliminates code duplication)
+        fn _get_member_contributions_summary(
+            self: @ContractState, group_id: u256
+        ) -> (u256, Array<(ContractAddress, u256)>) {
             let group_info = self.groups.read(group_id);
-            let current_cycle = group_info.current_cycle;
+            let mut total_contributions = 0_u256;
+            let mut member_contributions = ArrayTrait::new();
             let total_members = group_info.members;
-            let cycle_total = self.cycle_total_contributions.read((group_id, current_cycle));
-            let contributors_count = self.cycle_contributors_count.read((group_id, current_cycle));
-            
-            // Returns: (current_cycle, total_members, cycle_total_contributions, contributors_count)
-            (current_cycle, total_members, cycle_total, contributors_count)
-        }
 
-        // DEBUG: Get detailed contribution record for a specific user
-        fn debug_user_contribution_record(
-            self: @ContractState,
-            group_id: u256,
-            user_address: ContractAddress,
-            cycle: u64
-        ) -> ContributionRecord {
-            self.contribution_records.read((group_id, user_address, cycle))
-        }
-
-        // DEBUG: Check which members haven't contributed to current cycle
-        fn debug_missing_contributors(
-            self: @ContractState,
-            group_id: u256
-        ) -> (u64, Array<ContractAddress>) {
-            let group_info = self.groups.read(group_id);
-            let current_cycle = group_info.current_cycle;
-            let mut missing_contributors = ArrayTrait::new();
-            let mut member_index: u32 = 0;
-            
-            while member_index < group_info.members {
-                let group_member = self.group_members.read((group_id, member_index));
-                let contribution_record = self.contribution_records.read((group_id, group_member.user, current_cycle));
-                
-                // If contribution record is empty or invalid, user hasn't contributed
-                if contribution_record.contributor != group_member.user || contribution_record.amount == 0 {
-                    missing_contributors.append(group_member.user);
+            // Iterate through all members to get their total contributions
+            let mut i = 0_u32;
+            while i < total_members {
+                let group_member = self.group_members.read((group_id, i));
+                if group_member.user != contract_address_const::<0>() {
+                    let member_total_contributed = group_member.total_contributed;
+                    if member_total_contributed > 0 {
+                        total_contributions += member_total_contributed;
+                        member_contributions.append((group_member.user, member_total_contributed));
+                    }
                 }
-                
-                member_index += 1;
-            };
-            
-            (current_cycle, missing_contributors)
-        }
+                i += 1;
+            }
 
-        // DEBUG: Get caller address (for debugging multicall issues)
-        fn debug_get_caller(self: @ContractState) -> ContractAddress {
-            get_caller_address()
+            (total_contributions, member_contributions)
         }
     }
 }

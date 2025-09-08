@@ -814,47 +814,6 @@ fn test_get_user_joined_groups() {
     assert(*group_details_2.member_data.user == user, 'second group member mismatch');
 }
 
-#[test]
-fn test_get_user_activities() {
-    let (contract_address, owner, _token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-
-    let user: ContractAddress = contract_address_const::<'2'>();
-
-    // Owner grants admin role to user
-    start_cheat_caller_address(contract_address, owner);
-    dispatcher.add_admin(user);
-    stop_cheat_caller_address(contract_address);
-    // Register user (this creates an activity)
-    start_cheat_caller_address(contract_address, user);
-    dispatcher.register_user("TestUser", "https://example.com/user.png");
-
-    // Create a group (this creates another activity)
-    dispatcher
-        .create_public_group(
-            "Activity Test Group",
-            "Testing user activities",
-            5,
-            100,
-            LockType::Progressive,
-            1,
-            TimeUnit::Days,
-            false,
-            0,
-        );
-    stop_cheat_caller_address(contract_address);
-
-    // Test get_user_activities
-    let activities = dispatcher.get_user_activities(user, 10);
-    assert(activities.len() == 2, 'should have 2 activities');
-
-    // Verify activities
-    let first_activity = activities[0]; // Registration activity
-    let second_activity = activities[1]; // Group creation activity
-
-    assert!(*first_activity.user_address == user, "first activity user mismatch");
-    assert!(*second_activity.user_address == user, "second activity user mismatch");
-}
 
 #[test]
 fn test_get_user_statistics() {
