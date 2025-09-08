@@ -20,7 +20,7 @@ pub mod SaveCircle {
     };
     use save_circle::interfaces::Isavecircle::Isavecircle;
     use save_circle::structs::Structs::{
-        GroupInfo, GroupMember, PayoutRecord, ProfileViewData, UserActivity, UserGroupDetails,
+        ContributionRecord, GroupInfo, GroupMember, PayoutRecord, ProfileViewData, UserActivity, UserGroupDetails,
         UserProfile, UserStatistics,
     };
     use starknet::event::EventEmitter;
@@ -106,7 +106,17 @@ pub mod SaveCircle {
         >, // (group_id, user) -> penalty_amount
         user_cycle_contributions: Map<
             (u256, ContractAddress, u64), bool,
-        >, // (group_id, user, cycle) -> has_contributed
+        >, // (group_id, user, cycle) -> has_contributed (DEPRECATED - kept for backward compatibility)
+        // NEW: Comprehensive contribution tracking
+        contribution_records: Map<
+            (u256, ContractAddress, u64), ContributionRecord,
+        >, // (group_id, user, cycle) -> full contribution details
+        cycle_total_contributions: Map<
+            (u256, u64), u256,
+        >, // (group_id, cycle) -> total amount contributed in cycle
+        cycle_contributors_count: Map<
+            (u256, u64), u32,
+        >, // (group_id, cycle) -> number of contributors
         held_payouts: Map<u256, u32>, // (group_id) -> number_of_held_payouts
         early_withdrawal_penalty_rate: u256 // Penalty rate for early withdrawal (e.g., 1000 = 10%)
     }
@@ -890,8 +900,33 @@ pub mod SaveCircle {
             group_member.total_contributed += contribution_amount;
             self.group_members.write((group_id, member_index), group_member);
 
-            // Mark that user has contributed in this cycle
+            // Create comprehensive contribution record
+            let contribution_record = ContributionRecord {
+                contributor: caller,
+                group_id,
+                cycle: current_cycle,
+                amount: contribution_amount,
+                insurance_fee,
+                penalty_amount: deadline_penalty,
+                total_paid: total_payment,
+                timestamp: current_time,
+                is_late: deadline_penalty > 0,
+                member_index,
+            };
+
+            // Store the detailed contribution record
+            self.contribution_records.write((group_id, caller, current_cycle), contribution_record);
+
+            // Mark that user has contributed in this cycle (backward compatibility)
             self.user_cycle_contributions.write((group_id, caller, current_cycle), true);
+
+            // Update cycle contributors count
+            let current_contributors_count = self.cycle_contributors_count.read((group_id, current_cycle));
+            self.cycle_contributors_count.write((group_id, current_cycle), current_contributors_count + 1);
+
+            // Update cycle total contributions
+            let current_cycle_total = self.cycle_total_contributions.read((group_id, current_cycle));
+            self.cycle_total_contributions.write((group_id, current_cycle), current_cycle_total + contribution_amount);
 
             // Set next contribution deadline based on group cycle with strict timing
             // Daily: 26 hours (2-hour buffer before late penalty)
@@ -982,13 +1017,21 @@ pub mod SaveCircle {
             // Only admin can distribute payouts
             self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
 
-            // Check that all members have contributed for the current cycle
+            // Check that all members have contributed for the current cycle using comprehensive tracking
             let current_cycle = group_info.current_cycle;
             let mut member_index: u32 = 0;
             while member_index < group_info.members {
                 let group_member = self.group_members.read((group_id, member_index));
-                let has_contributed = self.user_cycle_contributions.read((group_id, group_member.user, current_cycle));
-                assert(has_contributed, Errors::NOT_ALL_MEMBERS_CONTRIBUTED);
+                
+                // Check if contribution record exists (more reliable than boolean flag)
+                let contribution_record = self.contribution_records.read((group_id, group_member.user, current_cycle));
+                
+                // Verify the contribution record is valid (contributor address matches and amount > 0)
+                assert(
+                    contribution_record.contributor == group_member.user && contribution_record.amount > 0,
+                    Errors::NOT_ALL_MEMBERS_CONTRIBUTED
+                );
+                
                 member_index += 1;
             };
 
@@ -1492,13 +1535,14 @@ pub mod SaveCircle {
             while i < total_members {
                 let group_member = self.group_members.read((group_id, i));
                 if group_member.user != contract_address_const::<0>() {
-                    // Check if this member contributed in the specified cycle
-                    let has_contributed = self.user_cycle_contributions.read((group_id, group_member.user, cycle));
-                    if has_contributed {
-                        // Each contribution is the group's contribution_amount
-                        let contribution_amount = group_info.contribution_amount;
-                        total_cycle_contributions += contribution_amount;
-                        cycle_contributors.append((group_member.user, contribution_amount));
+                    // Get contribution record from the comprehensive tracking system
+                    let contribution_record = self.contribution_records.read((group_id, group_member.user, cycle));
+                    
+                    // Check if this member has a valid contribution record for this cycle
+                    if contribution_record.contributor == group_member.user && contribution_record.amount > 0 {
+                        // Use the actual contribution amount from the record
+                        total_cycle_contributions += contribution_record.amount;
+                        cycle_contributors.append((group_member.user, contribution_record.amount));
                     }
                 }
                 i += 1;
@@ -1827,26 +1871,8 @@ pub mod SaveCircle {
         }
 
         fn _calculate_current_cycle_contributions(self: @ContractState, group_id: u256, cycle: u64) -> u256 {
-            let group_info = self.groups.read(group_id);
-            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
-
-            let mut cycle_contributions = 0_u256;
-            let mut member_index = 0_u32;
-
-            // Iterate through all members to check who contributed in this cycle
-            while member_index < group_info.members {
-                let group_member = self.group_members.read((group_id, member_index));
-                if group_member.user != contract_address_const::<0>() {
-                    // Check if this member contributed in the specified cycle
-                    let has_contributed = self.user_cycle_contributions.read((group_id, group_member.user, cycle));
-                    if has_contributed {
-                        cycle_contributions += group_info.contribution_amount;
-                    }
-                }
-                member_index += 1;
-            }
-
-            cycle_contributions
+            // Use the new comprehensive tracking system - much more efficient!
+            self.cycle_total_contributions.read((group_id, cycle))
         }
 
         fn _is_qualified_for_payout(self: @ContractState, group_id: u256, user: ContractAddress) -> bool {
@@ -2026,6 +2052,97 @@ pub mod SaveCircle {
                 self.user_cycle_contributions.write((group_id, group_member.user, new_cycle.try_into().unwrap()), false);
                 member_index += 1;
             };
+        }
+
+        // ============ COMPREHENSIVE CONTRIBUTION TRACKING FUNCTIONS ============
+
+        // Get detailed contribution record for a specific user and cycle
+        fn get_contribution_record(
+            self: @ContractState,
+            group_id: u256,
+            user_address: ContractAddress,
+            cycle: u64
+        ) -> ContributionRecord {
+            self.contribution_records.read((group_id, user_address, cycle))
+        }
+
+        // Get cycle statistics (total contributions and contributor count)
+        fn get_cycle_stats(
+            self: @ContractState,
+            group_id: u256,
+            cycle: u64
+        ) -> (u256, u32) {
+            let total_contributions = self.cycle_total_contributions.read((group_id, cycle));
+            let contributors_count = self.cycle_contributors_count.read((group_id, cycle));
+            (total_contributions, contributors_count)
+        }
+
+        // Check if a user has contributed to a specific cycle (using new system)
+        fn has_user_contributed_to_cycle(
+            self: @ContractState,
+            group_id: u256,
+            user_address: ContractAddress,
+            cycle: u64
+        ) -> bool {
+            let contribution_record = self.contribution_records.read((group_id, user_address, cycle));
+            contribution_record.contributor == user_address && contribution_record.amount > 0
+        }
+
+        // ============ DEBUG FUNCTIONS FOR TROUBLESHOOTING ============
+
+        // DEBUG: Get comprehensive contribution status for all members in current cycle
+        fn debug_contribution_status(
+            self: @ContractState, 
+            group_id: u256
+        ) -> (u64, u32, u256, u32) {
+            let group_info = self.groups.read(group_id);
+            let current_cycle = group_info.current_cycle;
+            let total_members = group_info.members;
+            let cycle_total = self.cycle_total_contributions.read((group_id, current_cycle));
+            let contributors_count = self.cycle_contributors_count.read((group_id, current_cycle));
+            
+            // Returns: (current_cycle, total_members, cycle_total_contributions, contributors_count)
+            (current_cycle, total_members, cycle_total, contributors_count)
+        }
+
+        // DEBUG: Get detailed contribution record for a specific user
+        fn debug_user_contribution_record(
+            self: @ContractState,
+            group_id: u256,
+            user_address: ContractAddress,
+            cycle: u64
+        ) -> ContributionRecord {
+            self.contribution_records.read((group_id, user_address, cycle))
+        }
+
+        // DEBUG: Check which members haven't contributed to current cycle
+        fn debug_missing_contributors(
+            self: @ContractState,
+            group_id: u256
+        ) -> (u64, Array<ContractAddress>) {
+            let group_info = self.groups.read(group_id);
+            let current_cycle = group_info.current_cycle;
+            let mut missing_contributors = ArrayTrait::new();
+            let mut member_index: u32 = 0;
+            
+            while member_index < group_info.members {
+                let group_member = self.group_members.read((group_id, member_index));
+                let contribution_record = self.contribution_records.read((group_id, group_member.user, current_cycle));
+                
+                // If contribution record is empty or invalid, user hasn't contributed
+                if contribution_record.contributor != group_member.user || contribution_record.amount == 0 {
+                    missing_contributors.append(group_member.user);
+                }
+                
+                member_index += 1;
+            };
+            
+            (current_cycle, missing_contributors)
+        }
+
+        // DEBUG: Get caller address (for debugging multicall issues)
+        fn debug_get_caller(self: @ContractState) -> ContractAddress {
+            get_caller_address()
         }
     }
 }

@@ -119,6 +119,20 @@ pub struct UserGroupDetails {
 }
 
 #[derive(Drop, Serde, starknet::Store)]
+pub struct ContributionRecord {
+    pub contributor: ContractAddress,
+    pub group_id: u256,
+    pub cycle: u64,
+    pub amount: u256,
+    pub insurance_fee: u256,
+    pub penalty_amount: u256,
+    pub total_paid: u256,
+    pub timestamp: u64,
+    pub is_late: bool,
+    pub member_index: u32,
+}
+
+#[derive(Drop, Serde, starknet::Store)]
 pub struct UserStatistics {
     pub user_address: ContractAddress,
     pub total_saved: u256,
