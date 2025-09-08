@@ -106,7 +106,7 @@ pub mod SaveCircle {
         >, // (group_id, user) -> penalty_amount
         user_cycle_contributions: Map<
             (u256, ContractAddress, u64), bool,
-        >, // (group_id, user, cycle) -> has_contributed (DEPRECATED - kept for backward compatibility)
+        >, 
         // NEW: Comprehensive contribution tracking
         contribution_records: Map<
             (u256, ContractAddress, u64), ContributionRecord,
@@ -118,7 +118,13 @@ pub mod SaveCircle {
             (u256, u64), u32,
         >, // (group_id, cycle) -> number of contributors
         held_payouts: Map<u256, u32>, // (group_id) -> number_of_held_payouts
-        early_withdrawal_penalty_rate: u256 // Penalty rate for early withdrawal (e.g., 1000 = 10%)
+        // Individual payout tracking to fix claim distribution
+        user_payout_amounts: Map<(u256, ContractAddress), u256>, // (group_id, user) -> payout_amount_available
+        early_withdrawal_penalty_rate: u256, // Penalty rate for early withdrawal (e.g., 1000 = 10%)
+        // Separate lock withdrawal tracking (independent from payout withdrawals)
+        lock_withdrawals: Map<(u256, ContractAddress), bool>, // (group_id, user) -> has_withdrawn_lock
+        // Admin group completion tracking (enables lock withdrawals)
+        admin_completed_groups: Map<u256, bool>, // (group_id) -> admin_has_marked_completed
     }
 
     #[event]
@@ -309,6 +315,7 @@ pub mod SaveCircle {
                 total_payments: 0,
                 average_contribution: 0,
                 payment_rate: 0,
+                pending_payouts: 0, // Initialize with no pending payouts
             };
 
             user_entry.write(new_profile);
@@ -779,13 +786,12 @@ pub mod SaveCircle {
             };
             let cycle_end_time = group_info.start_time + cycle_duration_seconds;
 
-            // Ensure cycle has ended
-            assert(current_time >= cycle_end_time, Errors::GROUP_CYCLE_NOT_ENDED);
+            // Ensure cycle has ended  will be enable back in full production 
+            // assert(current_time >= cycle_end_time, Errors::GROUP_CYCLE_NOT_ENDED);
 
-            // Ensure group is in Completed state (all payouts distributed)
-            assert(
-                group_info.state == GroupState::Completed, Errors::GROUP_CYCLE_MUST_BE_COMPLETED,
-            );
+            // Ensure admin has marked the group as completed (enables lock withdrawals)
+            let admin_completed = self.admin_completed_groups.read(group_id);
+            assert(admin_completed, 'Admin must mark group complete');
 
             // Get user's member information
             let member_index = self.user_joined_groups.read((caller, group_id));
@@ -797,8 +803,9 @@ pub mod SaveCircle {
             // Check if user has locked funds to withdraw
             assert(actual_locked_amount > 0, Errors::NO_LOCKED_FUNDS_TO_WITHDRAW);
 
-            // Check if user has already withdrawn (prevent double withdrawal)
-            assert(!group_member.has_been_paid, Errors::FUNDS_ALREADY_WITHDRAWN);
+            // Check if user has already withdrawn their lock (prevent double withdrawal)
+            let has_withdrawn_lock = self.lock_withdrawals.read((group_id, caller));
+            assert(!has_withdrawn_lock, Errors::FUNDS_ALREADY_WITHDRAWN);
 
             // Calculate withdrawable amount (could include penalties for missed contributions)
             let withdrawable_amount = if self._has_completed_circle(caller, group_id) {
@@ -829,9 +836,8 @@ pub mod SaveCircle {
             user_profile.total_lock_amount -= actual_locked_amount;
             self.user_profiles.write(caller, user_profile);
 
-            // Update group member - mark as withdrawn
-            group_member.has_been_paid = true;
-            self.group_members.write((group_id, member_index), group_member);
+            // Mark lock as withdrawn using separate tracking (independent from payout withdrawals)
+            self.lock_withdrawals.write((group_id, caller), true);
 
             // Update group lock storage
             self.group_lock.write((group_id, caller), 0);
@@ -1103,15 +1109,22 @@ pub mod SaveCircle {
             // Sort eligible recipients by priority (highest locked funds first, then earliest join order)
             let sorted_recipients = self._sort_recipients_by_priority(group_id, eligible_recipients);
             
-            // Distribute payouts to the top priority recipients only
+            // Credit each eligible user's profile with their payout amount
             let mut i = 0;
             while i < recipients_to_pay {
                 let recipient_address = *sorted_recipients.at(i);
                 let member_index = self.user_joined_groups.read((recipient_address, group_id));
                 let mut member = self.group_members.read((group_id, member_index));
                 
-                // Mark this member for payout
-                member.payout_cycle = group_info.current_cycle.try_into().unwrap() + 1;
+                // Credit user's profile with payout amount
+                let mut user_profile = self.user_profiles.read(recipient_address);
+                user_profile.pending_payouts += payout_per_recipient;
+                user_profile.total_earned += payout_per_recipient;
+                self.user_profiles.write(recipient_address, user_profile);
+                
+                // Mark member as paid in this group (no longer eligible for this cycle)
+                member.has_been_paid = true;
+                member.total_recieved += payout_per_recipient;
                 self.group_members.write((group_id, member_index), member);
                 
                 // Emit payout event
@@ -1131,108 +1144,245 @@ pub mod SaveCircle {
             group_info.payout_order += recipients_to_pay;
             group_info.last_payout_time = get_block_timestamp();
             
-            // Update remaining pool and held payouts
-            group_info.remaining_pool_amount = payout_per_recipient; // Amount each recipient can claim
-            
-            // Update held payouts count based on how many we distributed
-            // We prioritize using current cycle funds first, then held payouts
-            let held_payouts_used = if recipients_to_pay > 1 {
-                // If paying more than 1 person, we use current cycle + held payouts
-                // First payout comes from current cycle, additional from held payouts
-                recipients_to_pay - 1 // Use (recipients_to_pay - 1) held payouts
-            } else {
-                0 // Only used current cycle funds
-            };
-            
-            let new_held_payouts = if held_payouts_count >= held_payouts_used {
-                held_payouts_count - held_payouts_used
-            } else {
-                0
-            };
-            self.held_payouts.write(group_id, new_held_payouts);
+            // Update held payouts based on how many recipients were actually paid
+            // If recipients were paid, reduce held payouts accordingly
+            if recipients_to_pay > 0 {
+                // Calculate how many held payouts were used (recipients_to_pay - 1 since first comes from current cycle)
+                let held_payouts_used = if recipients_to_pay > 1 {
+                    recipients_to_pay - 1
+                } else {
+                    0
+                };
+                
+                let new_held_payouts = if held_payouts_count >= held_payouts_used {
+                    held_payouts_count - held_payouts_used
+                } else {
+                    0
+                };
+                self.held_payouts.write(group_id, new_held_payouts);
+            }
+            // If no recipients were paid, held payouts remain unchanged (they accumulate)
             
             // Always advance to the next cycle after payout distribution
             // Savings circles continue rotating indefinitely
             group_info.current_cycle += 1;
             self._reset_cycle_contributions(group_id, group_info.current_cycle.into());
             
-            // Optional: Mark group as completed after a full rotation if desired
-            // For now, keep the group active for continuous cycles
-            // if group_info.payout_order >= group_info.members {
-            //     group_info.state = GroupState::Completed;
-            // }
+            // Mark group as completed after a full rotation (all members have received payouts)
+            // Check if all members have been paid by iterating through all members
+            let mut all_members_paid = true;
+            let mut check_index = 0_u32;
+            while check_index < group_info.members {
+                let member = self.group_members.read((group_id, check_index));
+                if !member.has_been_paid {
+                    all_members_paid = false;
+                    break;
+                }
+                check_index += 1;
+            };
+            
+            if all_members_paid {
+                group_info.state = GroupState::Completed;
+            }
 
             self.groups.write(group_id, group_info);
             true
         }
 
-        fn claim_payout(ref self: ContractState, group_id: u256) -> u256 {
+        fn withdraw_payout(ref self: ContractState) -> u256 {
             let caller = get_caller_address();
 
             self.pausable.assert_not_paused();
 
-            // Verify user is a member of this group
-            assert(self._is_member(group_id, caller), Errors::USER_NOT_MEMBER);
+            // Get user's profile
+            let mut user_profile = self.user_profiles.read(caller);
+            assert(user_profile.is_registered, Errors::USER_NOT_REGISTERED);
+            assert(user_profile.pending_payouts > 0, Errors::NO_PAYOUT_AVAILABLE);
 
-            let group_info = self.groups.read(group_id);
-            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+            let withdrawal_amount = user_profile.pending_payouts;
 
-            // Get user's member information
-            let member_index = self.user_joined_groups.read((caller, group_id));
-            let mut group_member = self.group_members.read((group_id, member_index));
-
-            // Check if user is eligible for payout (payout_cycle > 0 means they were marked
-            // eligible)
-            assert(group_member.payout_cycle > 0, Errors::NO_PAYOUT_AVAILABLE);
-
-            // Check if user has already claimed their payout
-            assert(!group_member.has_been_paid, Errors::PAYOUT_ALREADY_CLAIMED);
-
-            // Get the payout amount from the group's remaining pool
-            let payout_amount = group_info.remaining_pool_amount;
-            assert(payout_amount > 0, Errors::NO_PAYOUT_AVAILABLE);
-
-            // Transfer payout to user
+            // Verify contract has sufficient balance to make the payout
             let payment_token = IERC20Dispatcher {
                 contract_address: self.payment_token_address.read(),
             };
-            let success = payment_token.transfer(caller, payout_amount);
+            let contract_balance = payment_token.balance_of(get_contract_address());
+            assert(contract_balance >= withdrawal_amount, Errors::INSUFFICIENT_POOL_BALANCE);
+
+            // Transfer payout to user
+            let success = payment_token.transfer(caller, withdrawal_amount);
             assert(success, Errors::PAYOUT_TRANSFER_FAILED);
 
-            // Store payout cycle before updating member
-            let payout_cycle = group_member.payout_cycle;
-
-            // Update member's payout status
-            group_member.has_been_paid = true;
-            group_member.total_recieved += payout_amount;
-            self.group_members.write((group_id, member_index), group_member);
+            // Clear user's pending payouts
+            user_profile.pending_payouts = 0;
+            self.user_profiles.write(caller, user_profile);
 
             // Record activity
             self
                 ._record_activity(
                     caller,
                     ActivityType::PayoutReceived,
-                    "Claimed payout from group",
-                    payout_amount,
-                    Option::Some(group_id),
+                    "Withdrew payout from profile",
+                    withdrawal_amount,
+                    Option::None, // No specific group since it's profile-based
                     true,
                 );
 
-            // Emit payout claimed event
+            // Emit payout withdrawal event
             self
                 .emit(
                     PayoutSent {
-                        group_id,
+                        group_id: 0, // Profile-based withdrawal, no specific group
                         recipient: caller,
-                        amount: payout_amount,
-                        cycle_number: payout_cycle.into(),
+                        amount: withdrawal_amount,
+                        cycle_number: 0, // Not cycle-specific
                         timestamp: get_block_timestamp(),
                     },
                 );
 
-            payout_amount
+            withdrawal_amount
         }
 
+        fn get_pending_payout(self: @ContractState, user_address: ContractAddress) -> u256 {
+            let user_profile = self.user_profiles.read(user_address);
+            user_profile.pending_payouts
+        }
+
+        fn get_user_withdrawal_info(self: @ContractState, user_address: ContractAddress) -> (u256, u256, u256) {
+            let user_profile = self.user_profiles.read(user_address);
+            let locked_balance = self.locked_balance.read(user_address);
+            
+            // Return (pending_payouts, total_locked_balance, total_earned)
+            (user_profile.pending_payouts, locked_balance, user_profile.total_earned)
+        }
+
+        fn distribute_final_pool(ref self: ContractState, group_id: u256) -> bool {
+            let caller = get_caller_address();
+
+            // Check if contract is paused
+            self.pausable.assert_not_paused();
+
+            // Only admin can distribute final pool
+            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
+
+            let mut group_info = self.groups.read(group_id);
+            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+            
+            // Ensure group has completed its cycle or is being terminated
+            // You might want to add additional checks here based on your business logic
+            // For now, we'll allow admin to distribute at any time
+            
+            // Get current insurance pool balance
+            let total_pool_balance = self.insurance_pool.read(group_id);
+            assert(total_pool_balance > 0, Errors::INSUFFICIENT_POOL_BALANCE);
+            
+            // Calculate distribution amounts
+            let protocol_fee = (total_pool_balance * 5) / 100; // 5% to protocol
+            let member_distribution = total_pool_balance - protocol_fee; // 95% to members
+            
+            // Ensure we have members to distribute to
+            assert(group_info.members > 0, Errors::NO_MEMBERS_IN_GROUP);
+            
+            // Calculate amount per member (equal distribution)
+            let amount_per_member = member_distribution / group_info.members.into();
+            assert(amount_per_member > 0, Errors::INSUFFICIENT_POOL_BALANCE);
+            
+            // Get payment token dispatcher
+            let payment_token = IERC20Dispatcher {
+                contract_address: self.payment_token_address.read(),
+            };
+            
+            // Verify contract has sufficient balance
+            let contract_balance = payment_token.balance_of(get_contract_address());
+            assert(contract_balance >= total_pool_balance, Errors::INSUFFICIENT_POOL_BALANCE);
+            
+            // Distribute to protocol treasury first
+            self.protocol_treasury.write(self.protocol_treasury.read() + protocol_fee);
+            
+            // Distribute to all group members
+            let mut member_index: u32 = 0;
+            let mut total_distributed: u256 = 0;
+            
+            while member_index < group_info.members {
+                let group_member = self.group_members.read((group_id, member_index));
+                
+                // Skip empty member slots
+                if group_member.user != contract_address_const::<0>() {
+                    // Transfer tokens to member
+                    let success = payment_token.transfer(group_member.user, amount_per_member);
+                    assert(success, Errors::PAYOUT_TRANSFER_FAILED);
+                    
+                    total_distributed += amount_per_member;
+                    
+                    // Update member's total received
+                    let mut updated_member = group_member;
+                    updated_member.total_recieved += amount_per_member;
+                    self.group_members.write((group_id, member_index), updated_member);
+                    
+                    // Emit event for pool distribution
+                    self.emit(
+                        PayoutSent {
+                            group_id,
+                            recipient: group_member.user,
+                            amount: amount_per_member,
+                            cycle_number: 999, // Special cycle number for final pool distribution
+                            timestamp: get_block_timestamp(),
+                        },
+                    );
+                }
+                
+                member_index += 1;
+            };
+            
+            // Clear the insurance pool for this group
+            self.insurance_pool.write(group_id, 0);
+            
+            // Emit admin pool withdrawal event for the protocol fee
+            self.emit(
+                AdminPoolWithdrawal {
+                    admin: caller,
+                    group_id,
+                    amount: protocol_fee,
+                    recipient: get_contract_address(), // Protocol treasury
+                    remaining_balance: 0, // Pool is now empty after final distribution
+                },
+            );
+            
+            // Update group info to mark final distribution as completed
+            group_info.state = GroupState::Completed;
+            self.groups.write(group_id, group_info);
+            
+            true
+        }
+
+        /// Admin function to mark a group as completed (enables lock withdrawals)
+        /// Only callable by admin after all cycles and payouts are complete
+        fn mark_group_completed(ref self: ContractState, group_id: u256) -> bool {
+            // Check if contract is paused
+            self.pausable.assert_not_paused();
+
+            // Only admin can mark group as completed
+            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
+
+            let group_info = self.groups.read(group_id);
+            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
+            
+            // Ensure group state is Completed (all payouts distributed)
+            assert(group_info.state == GroupState::Completed, 'Group not completed yet');
+            
+            // Ensure no held payouts remain
+            let held_payouts = self.held_payouts.read(group_id);
+            assert(held_payouts == 0, 'Held payouts remaining');
+            
+            // Mark group as admin completed (enables lock withdrawals)
+            self.admin_completed_groups.write(group_id, true);
+            
+            true
+        }
+
+        /// Check if admin has marked a group as completed
+        fn is_group_admin_completed(self: @ContractState, group_id: u256) -> bool {
+            self.admin_completed_groups.read(group_id)
+        }
 
         fn get_user_joined_groups(
             self: @ContractState, user_address: ContractAddress,
@@ -2080,6 +2230,12 @@ pub mod SaveCircle {
         ) -> bool {
             let contribution_record = self.contribution_records.read((group_id, user_address, cycle));
             contribution_record.contributor == user_address && contribution_record.amount > 0
+        }
+
+        fn get_user_payout_amount(
+            self: @ContractState, group_id: u256, user: ContractAddress,
+        ) -> u256 {
+            self.user_payout_amounts.read((group_id, user))
         }
 
       

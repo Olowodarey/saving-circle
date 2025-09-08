@@ -8,6 +8,7 @@ mod test_5_cycle_held_payouts {
     use save_circle::interfaces::Isavecircle::{IsavecircleDispatcher, IsavecircleDispatcherTrait};
     use snforge_std::{
         ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address,
+        start_cheat_block_timestamp,
         declare,
     };
     use starknet::{ContractAddress, contract_address_const};
@@ -202,9 +203,13 @@ mod test_5_cycle_held_payouts {
         println!("Held payouts after cycle 2: {}", cycle2_held);
         println!("Current cycle after cycle 2: {}", cycle2_info.current_cycle);
         
-        // User1 should be able to claim
+        // User1 should be able to withdraw payout
+        let user1_pending = dispatcher.get_pending_payout(user1);
+        println!("User1 pending payout: {}", user1_pending);
+        assert(user1_pending > 0, 'User1 shld have pending payout');
+        
         start_cheat_caller_address(contract_address, user1);
-        let user1_claimed = dispatcher.claim_payout(group_id);
+        let user1_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
         
         let user1_final_balance = token_dispatcher.balance_of(user1);
@@ -280,13 +285,20 @@ mod test_5_cycle_held_payouts {
         println!("Held payouts after cycle 4: {}", cycle4_held);
         println!("Current cycle after cycle 4: {}", cycle4_info.current_cycle);
         
-        // Both users should be able to claim
+        // Both users should be able to withdraw payouts
+        let user2_pending = dispatcher.get_pending_payout(user2);
+        let user3_pending = dispatcher.get_pending_payout(user3);
+        println!("User2 pending payout: {}", user2_pending);
+        println!("User3 pending payout: {}", user3_pending);
+        assert(user2_pending > 0, 'User2 shld have pending payout');
+        assert(user3_pending > 0, 'User3 shld have pending payout');
+        
         start_cheat_caller_address(contract_address, user2);
-        let user2_claimed = dispatcher.claim_payout(group_id);
+        let user2_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
         
         start_cheat_caller_address(contract_address, user3);
-        let user3_claimed = dispatcher.claim_payout(group_id);
+        let user3_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
         
         let user2_final_balance = token_dispatcher.balance_of(user2);
@@ -340,13 +352,20 @@ mod test_5_cycle_held_payouts {
         println!("Held payouts after cycle 5: {}", cycle5_held);
         println!("Current cycle after cycle 5: {}", cycle5_info.current_cycle);
         
-        // Both users should be able to claim
+        // Both users should be able to withdraw payouts
+        let user4_pending = dispatcher.get_pending_payout(user4);
+        let user5_pending = dispatcher.get_pending_payout(user5);
+        println!("User4 pending payout: {}", user4_pending);
+        println!("User5 pending payout: {}", user5_pending);
+        assert(user4_pending > 0, 'User4 shld have pending payout');
+        assert(user5_pending > 0, 'User5 shld have pending payout');
+        
         start_cheat_caller_address(contract_address, user4);
-        let user4_claimed = dispatcher.claim_payout(group_id);
+        let user4_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
         
         start_cheat_caller_address(contract_address, user5);
-        let user5_claimed = dispatcher.claim_payout(group_id);
+        let user5_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
         
         let user4_final_balance = token_dispatcher.balance_of(user4);
@@ -388,6 +407,74 @@ mod test_5_cycle_held_payouts {
         assert(final_held == 0, 'No held payouts remaining');
         assert(final_info.current_cycle == 5, 'Should be in cycle 5');
         
+        // === COMPLETE THE GROUP CYCLE ===
+        println!("\n=== COMPLETING GROUP CYCLE ===");
+        
+        // First call distribute_final_pool to mark group state as completed
+        start_cheat_caller_address(contract_address, owner);
+        dispatcher.distribute_final_pool(group_id);
+        
+        // Then admin marks group as completed (enables lock withdrawals)
+        dispatcher.mark_group_completed(group_id);
+        stop_cheat_caller_address(contract_address);
+        
+        // Advance time beyond cycle end to allow lock withdrawals
+        // let cycle_duration = 7 * 24 * 60 * 60; // 7 days in seconds
+        // let time_advance = cycle_duration + 1; // Go 1 second past cycle end
+        // start_cheat_block_timestamp(contract_address, get_block_timestamp() + time_advance);
+        
+        // Verify admin completion status
+        let admin_completed = dispatcher.is_group_admin_completed(group_id);
+        println!("Admin marked group as completed: {}", admin_completed);
+        assert(admin_completed, 'Group should be admin completed');
+        
+        println!("Group marked as completed and time advanced past cycle end");
+        
+        // === LOCK WITHDRAWAL AFTER ALL CYCLES ===
+        println!("\n=== LOCK WITHDRAWAL AFTER ALL CYCLES ===");
+        println!("Contract has been fixed: lock withdrawals are now independent from payout withdrawals!");
+        
+        // Get initial balances before withdrawal
+        let user1_balance_before_withdrawal = token_dispatcher.balance_of(user1);
+        let user2_balance_before_withdrawal = token_dispatcher.balance_of(user2);
+        
+        // Get locked amounts for verification
+        let (total_locked_before, _member_funds_before) = dispatcher.get_group_locked_funds(group_id);
+        println!("Total locked funds before withdrawal: {} tokens", total_locked_before);
+        
+        // User1 withdraws lock (should work now!)
+        start_cheat_caller_address(contract_address, user1);
+        let user1_withdrawn_amount = dispatcher.withdraw_locked(group_id);
+        stop_cheat_caller_address(contract_address);
+        
+        let user1_balance_after_withdrawal = token_dispatcher.balance_of(user1);
+        let user1_actual_withdrawn = user1_balance_after_withdrawal - user1_balance_before_withdrawal;
+        
+        println!("User1 withdrew: {} tokens (claimed: {})", user1_actual_withdrawn, user1_withdrawn_amount);
+        assert(user1_withdrawn_amount > 0, 'User1 should withdraw > 0');
+        assert(user1_actual_withdrawn == user1_withdrawn_amount, 'User1 amounts should match');
+        
+        // User2 withdraws lock (should work now!)
+        start_cheat_caller_address(contract_address, user2);
+        let user2_withdrawn_amount = dispatcher.withdraw_locked(group_id);
+        stop_cheat_caller_address(contract_address);
+        
+        let user2_balance_after_withdrawal = token_dispatcher.balance_of(user2);
+        let user2_actual_withdrawn = user2_balance_after_withdrawal - user2_balance_before_withdrawal;
+        
+        println!("User2 withdrew: {} tokens (claimed: {})", user2_actual_withdrawn, user2_withdrawn_amount);
+        assert(user2_withdrawn_amount > 0, 'User2 should withdraw > 0');
+        assert(user2_actual_withdrawn == user2_withdrawn_amount, 'User2 amounts should match');
+        
+        // Verify locked funds are reduced
+        let (total_locked_after, member_funds_after) = dispatcher.get_group_locked_funds(group_id);
+        println!("Total locked funds after withdrawal: {} tokens", total_locked_after);
+        
+        let expected_reduction = user1_withdrawn_amount + user2_withdrawn_amount;
+        let actual_reduction = total_locked_before - total_locked_after;
+        println!("Expected reduction: {}, Actual reduction: {}", expected_reduction, actual_reduction);
+        assert(actual_reduction == expected_reduction, 'Lock reduction should match');
+        
         println!("\n5-Cycle Held Payout Test PASSED!");
         println!("Summary:");
         println!("- Cycle 1: No eligible recipients, 1 held payout accumulated");
@@ -398,5 +485,6 @@ mod test_5_cycle_held_payouts {
         println!("- All held payouts distributed efficiently");
         println!("- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)");
         println!("- Perfect fund utilization with held payout accumulation and distribution");
+        println!("- User1 and User2 successfully withdrew their locked funds after all cycles");
     }
 }

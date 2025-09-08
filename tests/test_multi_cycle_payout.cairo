@@ -268,7 +268,7 @@ mod test_multi_cycle_payout {
         
         // User1 should be able to claim the payout (held payout + current cycle)
         start_cheat_caller_address(contract_address, user1);
-        let claimed_amount = dispatcher.claim_payout(group_id);
+        let claimed_amount = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user1_final_balance = token_dispatcher.balance_of(user1);
@@ -455,11 +455,11 @@ mod test_multi_cycle_payout {
 
         // Both users should be able to claim their payouts
         start_cheat_caller_address(contract_address, user1);
-        let user1_claimed = dispatcher.claim_payout(group_id);
+        let user1_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user2);
-        let user2_claimed = dispatcher.claim_payout(group_id);
+        let user2_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user1_final_balance = token_dispatcher.balance_of(user1);
@@ -532,7 +532,7 @@ mod test_multi_cycle_payout {
 
         // Only User3 should be able to claim payout (first eligible)
         start_cheat_caller_address(contract_address, user3);
-        let user3_claimed = dispatcher.claim_payout(group_id);
+        let user3_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user3_final_balance = token_dispatcher.balance_of(user3);
@@ -592,7 +592,7 @@ mod test_multi_cycle_payout {
 
         // User4 should be able to claim payout
         start_cheat_caller_address(contract_address, user4);
-        let user4_claimed = dispatcher.claim_payout(group_id);
+        let user4_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user4_balance_after_cycle4 = token_dispatcher.balance_of(user4);

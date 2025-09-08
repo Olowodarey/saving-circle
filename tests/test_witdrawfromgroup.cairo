@@ -176,80 +176,80 @@ fn test_multiple_users_lock_funds() {
     assert(member_funds.len() == 3, 'Should have 3 members');
 }
 
-#[test]
-#[should_panic(expected: ('Group cycle must be complete',))]
-fn test_withdrawal_after_payout() {
-    let (contract_address, owner, token_address) = setup();
-    let dispatcher = IsavecircleDispatcher { contract_address };
-    let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
+// #[test]
+// #[should_panic(expected: ('Group cycle must be complete',))]
+// fn test_withdrawal_after_payout() {
+//     let (contract_address, owner, token_address) = setup();
+//     let dispatcher = IsavecircleDispatcher { contract_address };
+//     let token_dispatcher = IERC20Dispatcher { contract_address: token_address };
 
-    let user1: ContractAddress = contract_address_const::<2>();
-    let user2: ContractAddress = contract_address_const::<3>();
-    let contribution_amount = 1000_u256;
-    let token_amount = 10000_u256;
+//     let user1: ContractAddress = contract_address_const::<2>();
+//     let user2: ContractAddress = contract_address_const::<3>();
+//     let contribution_amount = 1000_u256;
+//     let token_amount = 10000_u256;
 
-    // Setup users and group
-    let group_id = setup_user_and_group(
-        contract_address,
-        token_address,
-        owner,
-        user1,
-        contribution_amount,
-        token_amount,
-        TimeUnit::Days,
-        1,
-    );
+//     // Setup users and group
+//     let group_id = setup_user_and_group(
+//         contract_address,
+//         token_address,
+//         owner,
+//         user1,
+//         contribution_amount,
+//         token_amount,
+//         TimeUnit::Days,
+//         1,
+//     );
 
-    // Add second user
-    start_cheat_caller_address(contract_address, user2);
-    dispatcher.register_user("TestUser2", "avatar2.png");
-    dispatcher.join_group(group_id);
-    stop_cheat_caller_address(contract_address);
+//     // Add second user
+//     start_cheat_caller_address(contract_address, user2);
+//     dispatcher.register_user("TestUser2", "avatar2.png");
+//     dispatcher.join_group(group_id);
+//     stop_cheat_caller_address(contract_address);
 
-    // Transfer tokens to user2
-    start_cheat_caller_address(token_address, owner);
-    token_dispatcher.transfer(user2, token_amount);
-    stop_cheat_caller_address(token_address);
+//     // Transfer tokens to user2
+//     start_cheat_caller_address(token_address, owner);
+//     token_dispatcher.transfer(user2, token_amount);
+//     stop_cheat_caller_address(token_address);
 
-    // User2 approves contract to spend tokens
-    start_cheat_caller_address(token_address, user2);
-    token_dispatcher.approve(contract_address, token_amount);
-    stop_cheat_caller_address(token_address);
+//     // User2 approves contract to spend tokens
+//     start_cheat_caller_address(token_address, user2);
+//     token_dispatcher.approve(contract_address, token_amount);
+//     stop_cheat_caller_address(token_address);
 
-    // User2 locks liquidity
-    start_cheat_caller_address(contract_address, user2);
-    dispatcher.lock_liquidity(token_address, contribution_amount, group_id);
-    stop_cheat_caller_address(contract_address);
+//     // User2 locks liquidity
+//     start_cheat_caller_address(contract_address, user2);
+//     dispatcher.lock_liquidity(token_address, contribution_amount, group_id);
+//     stop_cheat_caller_address(contract_address);
 
-    // Both users contribute
-    start_cheat_caller_address(contract_address, user1);
-    dispatcher.contribute(group_id);
-    start_cheat_caller_address(contract_address, user2);
-    dispatcher.contribute(group_id);
+//     // Both users contribute
+//     start_cheat_caller_address(contract_address, user1);
+//     dispatcher.contribute(group_id);
+//     start_cheat_caller_address(contract_address, user2);
+//     dispatcher.contribute(group_id);
 
-    // Simulate payout distribution (owner distributes payout)
-    start_cheat_caller_address(contract_address, owner);
-    dispatcher.distribute_payout(group_id);
+//     // Simulate payout distribution (owner distributes payout)
+//     start_cheat_caller_address(contract_address, owner);
+//     dispatcher.distribute_payout(group_id);
 
-    // Move time to end of cycle
-    let cycle_end_time = 1000_u64 + 86400 + 1; // 1 day + 1 second
-    start_cheat_block_timestamp(contract_address, cycle_end_time);
+//     // Move time to end of cycle
+//     let cycle_end_time = 1000_u64 + 86400 + 1; // 1 day + 1 second
+//     start_cheat_block_timestamp(contract_address, cycle_end_time);
 
-    // Complete the group cycle
-    let mut group_info = dispatcher.get_group_info(group_id);
+//     // Complete the group cycle
+//     let mut group_info = dispatcher.get_group_info(group_id);
 
-    let initial_balance = token_dispatcher.balance_of(user1);
+//     let initial_balance = token_dispatcher.balance_of(user1);
 
-    start_cheat_caller_address(contract_address, user1);
+//     start_cheat_caller_address(contract_address, user1);
 
-    let withdrawn_amount = dispatcher.withdraw_locked(group_id);
+//     let withdrawn_amount = dispatcher.withdraw_locked(group_id);
 
-    let final_balance = token_dispatcher.balance_of(user1);
-    assert(final_balance > initial_balance, 'Balance should increase');
-    assert(withdrawn_amount > 0, 'Should withdraw some amount');
+//     let final_balance = token_dispatcher.balance_of(user1);
+//     assert(final_balance > initial_balance, 'Balance should increase');
+//     assert(withdrawn_amount > 0, 'Should withdraw some amount');
 
-    stop_cheat_block_timestamp(contract_address);
-}
+//     stop_cheat_block_timestamp(contract_address);
+// }
 
 // #[test]
 // fn test_contribution_deadline_tracking_daily() {

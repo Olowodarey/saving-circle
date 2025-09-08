@@ -19,6 +19,7 @@ pub mod Errors {
     pub const ONLY_CREATOR_CAN_DISTRIBUTE: felt252 = 'Only creator can distribute';
     pub const GROUP_CYCLE_MUST_BE_COMPLETED: felt252 = 'Group cycle must be complete';
     pub const GROUP_CYCLE_NOT_ENDED: felt252 = 'Group cycle not ended yet';
+    pub const USER_NOT_REGISTERED: felt252 = 'User not registered';
 
     // Financial Errors
     pub const AMOUNT_MUST_BE_GREATER_THAN_ZERO: felt252 = 'Amount must be greater than 0';
@@ -48,6 +49,7 @@ pub mod Errors {
     pub const NO_ELIGIBLE_MEMBER_FOUND: felt252 = 'No eligible member found';
     pub const NO_PAYOUT_AVAILABLE: felt252 = 'No payout available';
     pub const PAYOUT_ALREADY_CLAIMED: felt252 = 'Payout already claimed';
+    pub const NO_MEMBERS_IN_GROUP: felt252 = 'No members in group';
 
 
     // New errors for deadline and early withdrawal functionality

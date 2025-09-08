@@ -215,7 +215,7 @@ mod test_five_member_held_payouts {
 
         // User1 should be able to claim
         start_cheat_caller_address(contract_address, user1);
-        let user1_claimed = dispatcher.claim_payout(group_id);
+        let user1_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user1_final_balance = token_dispatcher.balance_of(user1);
@@ -296,7 +296,7 @@ mod test_five_member_held_payouts {
 
         // User2 should be able to claim
         start_cheat_caller_address(contract_address, user2);
-        let user2_claimed = dispatcher.claim_payout(group_id);
+        let user2_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user2_final_balance = token_dispatcher.balance_of(user2);
@@ -389,15 +389,15 @@ mod test_five_member_held_payouts {
 
         // All three users should be able to claim (User3, User4, User5)
         start_cheat_caller_address(contract_address, user3);
-        let user3_claimed = dispatcher.claim_payout(group_id);
+        let user3_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user4);
-        let user4_claimed = dispatcher.claim_payout(group_id);
+        let user4_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user5);
-        let user5_claimed = dispatcher.claim_payout(group_id);
+        let user5_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user3_final_balance = token_dispatcher.balance_of(user3);
@@ -595,7 +595,7 @@ mod test_five_member_held_payouts {
 
         // User1 should be able to claim
         start_cheat_caller_address(contract_address, user1);
-        let user1_claimed = dispatcher.claim_payout(group_id);
+        let user1_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user1_final_balance = token_dispatcher.balance_of(user1);
@@ -725,19 +725,19 @@ mod test_five_member_held_payouts {
 
         // All four users should be able to claim (User2, User3, User4, User5)
         start_cheat_caller_address(contract_address, user2);
-        let user2_claimed = dispatcher.claim_payout(group_id);
+        let user2_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user3);
-        let user3_claimed = dispatcher.claim_payout(group_id);
+        let user3_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user4);
-        let user4_claimed = dispatcher.claim_payout(group_id);
+        let user4_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user5);
-        let user5_claimed = dispatcher.claim_payout(group_id);
+        let user5_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user2_final_balance = token_dispatcher.balance_of(user2);
@@ -1057,23 +1057,23 @@ mod test_five_member_held_payouts {
 
         // All five users should be able to claim (User1, User2, User3, User4, User5)
         start_cheat_caller_address(contract_address, user1);
-        let user1_claimed = dispatcher.claim_payout(group_id);
+        let user1_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user2);
-        let user2_claimed = dispatcher.claim_payout(group_id);
+        let user2_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user3);
-        let user3_claimed = dispatcher.claim_payout(group_id);
+        let user3_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user4);
-        let user4_claimed = dispatcher.claim_payout(group_id);
+        let user4_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user5);
-        let user5_claimed = dispatcher.claim_payout(group_id);
+        let user5_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user1_final_balance = token_dispatcher.balance_of(user1);

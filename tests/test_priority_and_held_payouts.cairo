@@ -249,11 +249,11 @@ mod test_priority_and_held_payouts {
 
         // Both should be able to claim
         start_cheat_caller_address(contract_address, user2);
-        let user2_claimed = dispatcher.claim_payout(group_id);
+        let user2_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user3);
-        let user3_claimed = dispatcher.claim_payout(group_id);
+        let user3_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user2_final_balance = token_dispatcher.balance_of(user2);
@@ -321,11 +321,11 @@ mod test_priority_and_held_payouts {
 
         // Both User1 and User4 should be able to claim
         start_cheat_caller_address(contract_address, user1);
-        let user1_claimed = dispatcher.claim_payout(group_id);
+        let user1_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         start_cheat_caller_address(contract_address, user4);
-        let user4_claimed = dispatcher.claim_payout(group_id);
+        let user4_claimed = dispatcher.withdraw_payout();
         stop_cheat_caller_address(contract_address);
 
         let user1_final_balance = token_dispatcher.balance_of(user1);
