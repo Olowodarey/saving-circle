@@ -1206,8 +1206,27 @@ pub mod SaveCircle {
             }
             // If no recipients were paid, held payouts remain unchanged (they accumulate)
 
-            // Always advance to the next cycle after payout distribution
-            // Savings circles continue rotating indefinitely
+            // CHECK FOR GROUP COMPLETION BEFORE INCREMENTING CYCLE
+            // Mark group as completed after a full rotation (all members have received payouts)
+            let mut all_members_paid = true;
+            let mut check_index = 0_u32;
+            while check_index < group_info.members {
+                let member = self.group_members.read((group_id, check_index));
+                if !member.has_been_paid {
+                    all_members_paid = false;
+                    break;
+                }
+                check_index += 1;
+            }
+
+            if all_members_paid {
+                // Group is completed - don't increment cycle, just mark as completed
+                group_info.state = GroupState::Completed;
+                self.groups.write(group_id, group_info);
+                return true;
+            }
+
+            // Only advance to next cycle if group is not completed
             group_info.current_cycle += 1;
             self._reset_cycle_contributions(group_id, group_info.current_cycle.into());
 
@@ -1246,23 +1265,6 @@ pub mod SaveCircle {
                 let group_member = self.group_members.read((group_id, reset_member_index));
                 self.contribution_deadlines.write((group_id, group_member.user), next_deadline);
                 reset_member_index += 1;
-            }
-
-            // Mark group as completed after a full rotation (all members have received payouts)
-            // Check if all members have been paid by iterating through all members
-            let mut all_members_paid = true;
-            let mut check_index = 0_u32;
-            while check_index < group_info.members {
-                let member = self.group_members.read((group_id, check_index));
-                if !member.has_been_paid {
-                    all_members_paid = false;
-                    break;
-                }
-                check_index += 1;
-            }
-
-            if all_members_paid {
-                group_info.state = GroupState::Completed;
             }
 
             self.groups.write(group_id, group_info);
@@ -1923,7 +1925,7 @@ pub mod SaveCircle {
 
             // Require locked funds = cycles_remaining * contribution_amount
             // This ensures user can contribute for all remaining cycles
-            let minimum_required = cycles_remaining.into() * cost_per_contribution;
+            let minimum_required = cycles_remaining.into()  * cost_per_contribution;
 
             // User qualifies if they have enough locked funds for remaining cycles
             current_locked_balance >= minimum_required
