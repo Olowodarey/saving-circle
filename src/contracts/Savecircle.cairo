@@ -1066,23 +1066,22 @@ pub mod SaveCircle {
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
             assert(group_info.state == GroupState::Active, Errors::GROUP_MUST_BE_ACTIVE);
 
-            // Only admin can distribute payouts
+            
             self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
 
             // Check that all members have contributed for the current cycle using comprehensive
-            // tracking
+        
             let current_cycle = group_info.current_cycle;
             let mut member_index: u32 = 0;
             while member_index < group_info.members {
                 let group_member = self.group_members.read((group_id, member_index));
 
-                // Check if contribution record exists (more reliable than boolean flag)
+                // Check if contribution record exists
                 let contribution_record = self
                     .contribution_records
                     .read((group_id, group_member.user, current_cycle));
 
-                // Verify the contribution record is valid (contributor address matches and amount >
-                // 0)
+                // Verify the contribution record is valid
                 assert(
                     contribution_record.contributor == group_member.user
                         && contribution_record.amount > 0,
@@ -1128,7 +1127,7 @@ pub mod SaveCircle {
                 return true;
             }
 
-            // This is the standard savings circle model where each person gets the full pot
+    
             let payout_per_recipient = current_cycle_contributions;
 
             // Calculate total available funds for payouts
@@ -1145,8 +1144,7 @@ pub mod SaveCircle {
                 max_payouts_possible_u32
             };
 
-            // Sort eligible recipients by priority (highest locked funds first, then earliest join
-            // order)
+            // Sort eligible recipients by priority
             let sorted_recipients = self
                 ._sort_recipients_by_priority(group_id, eligible_recipients);
 
@@ -1168,7 +1166,7 @@ pub mod SaveCircle {
                 member.total_recieved += payout_per_recipient;
                 self.group_members.write((group_id, member_index), member);
 
-                // Emit payout event
+            
                 self
                     .emit(
                         PayoutDistributed {
@@ -1187,10 +1185,7 @@ pub mod SaveCircle {
             group_info.last_payout_time = get_block_timestamp();
 
             // Update held payouts based on how many recipients were actually paid
-            // If recipients were paid, reduce held payouts accordingly
             if recipients_to_pay > 0 {
-                // Calculate how many held payouts were used (recipients_to_pay - 1 since first
-                // comes from current cycle)
                 let held_payouts_used = if recipients_to_pay > 1 {
                     recipients_to_pay - 1
                 } else {
@@ -1220,7 +1215,6 @@ pub mod SaveCircle {
             }
 
             if all_members_paid {
-                // Group is completed - don't increment cycle, just mark as completed
                 group_info.state = GroupState::Completed;
                 self.groups.write(group_id, group_info);
                 return true;
@@ -1234,27 +1228,23 @@ pub mod SaveCircle {
             let current_time = get_block_timestamp();
             let next_deadline = match group_info.cycle_unit {
                 TimeUnit::Hours => {
-                    // Full cycle duration + 10 minutes grace period
                     let cycle_seconds = group_info.cycle_duration * 3600;
-                    let grace_seconds = 10 * 60; // 10 minutes
+                    let grace_seconds = 10 * 60;
                     current_time + cycle_seconds + grace_seconds
                 },
                 TimeUnit::Days => {
-                    // Full cycle duration + 2 hours grace period
                     let cycle_seconds = group_info.cycle_duration * 86400;
-                    let grace_seconds = 2 * 3600; // 2 hours
+                    let grace_seconds = 2 * 3600;
                     current_time + cycle_seconds + grace_seconds
                 },
                 TimeUnit::Weeks => {
-                    // Full cycle duration + 5 hours grace period
                     let cycle_seconds = group_info.cycle_duration * 7 * 86400;
-                    let grace_seconds = 5 * 3600; // 5 hours
+                    let grace_seconds = 5 * 3600;
                     current_time + cycle_seconds + grace_seconds
                 },
                 TimeUnit::Months => {
-                    // Full cycle duration + 1 day grace period
                     let cycle_seconds = group_info.cycle_duration * 30 * 86400;
-                    let grace_seconds = 24 * 3600; // 1 day
+                    let grace_seconds = 24 * 3600;
                     current_time + cycle_seconds + grace_seconds
                 },
             };
