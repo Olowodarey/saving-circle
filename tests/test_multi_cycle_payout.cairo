@@ -101,7 +101,7 @@ mod test_multi_cycle_payout {
         let user2: ContractAddress = contract_address_const::<3>();
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -265,7 +265,7 @@ mod test_multi_cycle_payout {
         // Verify cycle 2 results
         assert(after_cycle2_info.current_cycle == 2, 'Should advance to cycle 2');
         assert(after_cycle2_info.payout_order == 1, 'User1 marked for payout');
-        
+
         // User1 should be able to claim the payout (held payout + current cycle)
         start_cheat_caller_address(contract_address, user1);
         let claimed_amount = dispatcher.withdraw_payout();
@@ -301,7 +301,7 @@ mod test_multi_cycle_payout {
         let user2: ContractAddress = contract_address_const::<3>();
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -384,7 +384,11 @@ mod test_multi_cycle_payout {
 
         println!("=== CYCLE 1: NO ELIGIBLE RECIPIENTS ===");
         let cycle1_info_before = dispatcher.get_group_info(group_id);
-        println!("Before payout - Current cycle: {}, Pool: {}", cycle1_info_before.current_cycle, cycle1_info_before.remaining_pool_amount);
+        println!(
+            "Before payout - Current cycle: {}, Pool: {}",
+            cycle1_info_before.current_cycle,
+            cycle1_info_before.remaining_pool_amount,
+        );
 
         // Distribute payout for cycle 1 - should hold payout
         start_cheat_caller_address(contract_address, owner);
@@ -395,7 +399,12 @@ mod test_multi_cycle_payout {
 
         let cycle1_info_after = dispatcher.get_group_info(group_id);
         let cycle1_held_payouts = dispatcher.get_held_payouts(group_id);
-        println!("After payout - Current cycle: {}, Pool: {}, Held: {}", cycle1_info_after.current_cycle, cycle1_info_after.remaining_pool_amount, cycle1_held_payouts);
+        println!(
+            "After payout - Current cycle: {}, Pool: {}, Held: {}",
+            cycle1_info_after.current_cycle,
+            cycle1_info_after.remaining_pool_amount,
+            cycle1_held_payouts,
+        );
 
         assert(cycle1_info_after.current_cycle == 1, 'Should advance to cycle 1');
         assert(cycle1_info_after.remaining_pool_amount == 4000, 'Should hold 4000 tokens');
@@ -431,7 +440,11 @@ mod test_multi_cycle_payout {
 
         println!("=== CYCLE 2: TWO ELIGIBLE RECIPIENTS ===");
         let cycle2_info_before = dispatcher.get_group_info(group_id);
-        println!("Before payout - Current cycle: {}, Pool: {}", cycle2_info_before.current_cycle, cycle2_info_before.remaining_pool_amount);
+        println!(
+            "Before payout - Current cycle: {}, Pool: {}",
+            cycle2_info_before.current_cycle,
+            cycle2_info_before.remaining_pool_amount,
+        );
 
         // Get initial balances
         let user1_initial_balance = token_dispatcher.balance_of(user1);
@@ -446,9 +459,13 @@ mod test_multi_cycle_payout {
 
         let cycle2_info_after = dispatcher.get_group_info(group_id);
         let cycle2_held_payouts = dispatcher.get_held_payouts(group_id);
-        println!("After payout - Current cycle: {}, Pool: {}, Held: {}, Payout order: {}", 
-                cycle2_info_after.current_cycle, cycle2_info_after.remaining_pool_amount, 
-                cycle2_held_payouts, cycle2_info_after.payout_order);
+        println!(
+            "After payout - Current cycle: {}, Pool: {}, Held: {}, Payout order: {}",
+            cycle2_info_after.current_cycle,
+            cycle2_info_after.remaining_pool_amount,
+            cycle2_held_payouts,
+            cycle2_info_after.payout_order,
+        );
 
         assert(cycle2_info_after.current_cycle == 2, 'Should advance to cycle 2');
         assert(cycle2_info_after.payout_order == 2, 'Two users marked for payout');
@@ -507,8 +524,12 @@ mod test_multi_cycle_payout {
         println!("=== CYCLE 3: ONLY ONE PERSON CAN BE PAID (4000 AVAILABLE) ===");
         let cycle3_info_before = dispatcher.get_group_info(group_id);
         let cycle3_held_before = dispatcher.get_held_payouts(group_id);
-        println!("Before payout - Current cycle: {}, Pool: {}, Held: {}", 
-                cycle3_info_before.current_cycle, cycle3_info_before.remaining_pool_amount, cycle3_held_before);
+        println!(
+            "Before payout - Current cycle: {}, Pool: {}, Held: {}",
+            cycle3_info_before.current_cycle,
+            cycle3_info_before.remaining_pool_amount,
+            cycle3_held_before,
+        );
 
         // Get initial balances for cycle 3
         let user3_initial_balance = token_dispatcher.balance_of(user3);
@@ -523,9 +544,13 @@ mod test_multi_cycle_payout {
 
         let cycle3_info_after = dispatcher.get_group_info(group_id);
         let cycle3_held_after = dispatcher.get_held_payouts(group_id);
-        println!("After payout - Current cycle: {}, Pool: {}, Held: {}, Payout order: {}", 
-                cycle3_info_after.current_cycle, cycle3_info_after.remaining_pool_amount, 
-                cycle3_held_after, cycle3_info_after.payout_order);
+        println!(
+            "After payout - Current cycle: {}, Pool: {}, Held: {}, Payout order: {}",
+            cycle3_info_after.current_cycle,
+            cycle3_info_after.remaining_pool_amount,
+            cycle3_held_after,
+            cycle3_info_after.payout_order,
+        );
 
         assert(cycle3_info_after.current_cycle == 3, 'Should advance to cycle 3');
         assert(cycle3_info_after.payout_order == 3, 'Only one more person paid');
@@ -570,8 +595,11 @@ mod test_multi_cycle_payout {
 
         println!("=== CYCLE 4: USER4 GETS FINAL PAYOUT ===");
         let cycle4_info_before = dispatcher.get_group_info(group_id);
-        println!("Before payout - Current cycle: {}, Pool: {}", 
-                cycle4_info_before.current_cycle, cycle4_info_before.remaining_pool_amount);
+        println!(
+            "Before payout - Current cycle: {}, Pool: {}",
+            cycle4_info_before.current_cycle,
+            cycle4_info_before.remaining_pool_amount,
+        );
 
         // Get User4's balance before cycle 4 payout
         let user4_balance_before_cycle4 = token_dispatcher.balance_of(user4);
@@ -584,9 +612,12 @@ mod test_multi_cycle_payout {
         assert(cycle4_result, 'Cycle 4 payout should succeed');
 
         let cycle4_info_after = dispatcher.get_group_info(group_id);
-        println!("After payout - Current cycle: {}, Pool: {}, Payout order: {}", 
-                cycle4_info_after.current_cycle, cycle4_info_after.remaining_pool_amount, 
-                cycle4_info_after.payout_order);
+        println!(
+            "After payout - Current cycle: {}, Pool: {}, Payout order: {}",
+            cycle4_info_after.current_cycle,
+            cycle4_info_after.remaining_pool_amount,
+            cycle4_info_after.payout_order,
+        );
 
         assert(cycle4_info_after.payout_order == 4, 'All 4 users should be paid');
 
@@ -622,7 +653,9 @@ mod test_multi_cycle_payout {
         println!("- Cycle 2: User1 and User2 received payouts (8000 tokens available)");
         println!("- Cycle 3: User3 received payout (4000 tokens available, User4 waits)");
         println!("- Cycle 4: User4 received final payout (4000 tokens available)");
-        println!("- Each user received exactly {} tokens (full cycle amount)", expected_cycle_payout);
+        println!(
+            "- Each user received exactly {} tokens (full cycle amount)", expected_cycle_payout,
+        );
         println!("- Correct savings circle logic: pay based on available funds!");
     }
 }

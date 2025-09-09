@@ -101,7 +101,7 @@ mod test_no_eligible_payout {
         let user2: ContractAddress = contract_address_const::<3>();
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -135,7 +135,7 @@ mod test_no_eligible_payout {
 
         // Users approve contract to spend tokens (need enough for contributions + locking)
         let total_needed = token_amount; // Already large enough for all operations
-        
+
         start_cheat_caller_address(token_address, user2);
         token_dispatcher.approve(contract_address, total_needed);
         stop_cheat_caller_address(token_address);
@@ -213,21 +213,29 @@ mod test_no_eligible_payout {
 
         // Verify cycle advanced (no eligible recipients, so cycle moves forward)
         assert(updated_group_info.current_cycle == 1, 'Cycle should advance to 1');
-        
+
         // Verify payout was held (added to remaining pool)
         let expected_payout = contribution_amount * 4; // 4 users * 1000 each = 4000
         assert(updated_group_info.remaining_pool_amount == expected_payout, 'Payout held in pool');
-        
+
         // Verify no one was marked for payout (payout_order should remain 0)
         assert(updated_group_info.payout_order == 0, 'No payout marked');
-        
+
         // Verify held payouts counter increased
         assert(updated_held_payouts == initial_held_payouts + 1, 'Held payouts increased');
 
         println!("No eligible recipients test passed!");
-        println!("- Cycle advanced from {} to {}", initial_group_info.current_cycle, updated_group_info.current_cycle);
-        println!("- Payout held in remaining pool: {} tokens", updated_group_info.remaining_pool_amount);
-        println!("- No recipients marked for payout (payout_order: {})", updated_group_info.payout_order);
+        println!(
+            "- Cycle advanced from {} to {}",
+            initial_group_info.current_cycle,
+            updated_group_info.current_cycle,
+        );
+        println!(
+            "- Payout held in remaining pool: {} tokens", updated_group_info.remaining_pool_amount,
+        );
+        println!(
+            "- No recipients marked for payout (payout_order: {})", updated_group_info.payout_order,
+        );
         println!("- Held payouts count: {}", updated_held_payouts);
     }
 }

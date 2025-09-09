@@ -83,6 +83,9 @@ fn test_lock_liquidity_basic_functionality() {
     // Test lock_liquidity function
     start_cheat_caller_address(contract_address, user);
 
+    // user joins group
+    dispatcher.join_group(group_id);
+
     // Check initial state
     let initial_token_balance = token_dispatcher.balance_of(user);
     assert(initial_token_balance == 10000, 'User should have 10000 tokens');
@@ -159,6 +162,9 @@ fn test_lock_liquidity_multiple_locks() {
     // Test multiple locks
     start_cheat_caller_address(contract_address, user);
 
+    // join group
+    dispatcher.join_group(group_id);
+
     // First lock
     let first_lock = 1000;
     let result1 = dispatcher.lock_liquidity(token_address, first_lock, group_id);
@@ -222,6 +228,9 @@ fn test_lock_liquidity_insufficient_balance() {
 
     // Give user insufficient tokens
     start_cheat_caller_address(token_address, owner);
+
+    // join group
+
     token_dispatcher.transfer(user, 100); // Only 100 tokens
     stop_cheat_caller_address(token_address);
 
@@ -295,11 +304,13 @@ fn test_get_locked_balance_multiple_users() {
 
     // User1 locks funds
     start_cheat_caller_address(contract_address, user1);
+    dispatcher.join_group(group_id);
     dispatcher.lock_liquidity(token_address, 2000, group_id);
     stop_cheat_caller_address(contract_address);
 
     // User2 locks funds
     start_cheat_caller_address(contract_address, user2);
+    dispatcher.join_group(group_id);
     dispatcher.lock_liquidity(token_address, 1500, group_id);
     stop_cheat_caller_address(contract_address);
 

@@ -7,8 +7,8 @@ mod test_five_member_held_payouts {
     use save_circle::enums::Enums::{LockType, TimeUnit};
     use save_circle::interfaces::Isavecircle::{IsavecircleDispatcher, IsavecircleDispatcherTrait};
     use snforge_std::{
-        ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address,
-        declare,
+        ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+        stop_cheat_caller_address,
     };
     use starknet::{ContractAddress, contract_address_const};
 
@@ -101,7 +101,7 @@ mod test_five_member_held_payouts {
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
         let user5: ContractAddress = contract_address_const::<6>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -385,7 +385,9 @@ mod test_five_member_held_payouts {
 
         let cycle5_info = dispatcher.get_group_info(group_id);
         let cycle5_held = dispatcher.get_held_payouts(group_id);
-        println!("After cycle 5 - Payout order: {}, Held: {}", cycle5_info.payout_order, cycle5_held);
+        println!(
+            "After cycle 5 - Payout order: {}, Held: {}", cycle5_info.payout_order, cycle5_held,
+        );
 
         // All three users should be able to claim (User3, User4, User5)
         start_cheat_caller_address(contract_address, user3);
@@ -428,10 +430,14 @@ mod test_five_member_held_payouts {
         println!("- Cycle 2: No eligible recipients, 1 held payout accumulated");
         println!("- Cycle 3: User2 received payout (5000 tokens: current cycle only)");
         println!("- Cycle 4: No eligible recipients, 2 held payouts accumulated");
-        println!("- Cycle 5: User3, User4, and User5 received payouts (15000 tokens: 2 held + 1 current)");
+        println!(
+            "- Cycle 5: User3, User4, and User5 received payouts (15000 tokens: 2 held + 1 current)",
+        );
         println!("- Priority correctly determined by join order for same lock amounts");
         println!("- All 3 eligible recipients paid in cycle 5 as requested");
-        println!("- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)");
+        println!(
+            "- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)",
+        );
     }
 
     #[test]
@@ -446,7 +452,7 @@ mod test_five_member_held_payouts {
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
         let user5: ContractAddress = contract_address_const::<6>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -721,7 +727,9 @@ mod test_five_member_held_payouts {
 
         let cycle5_info = dispatcher.get_group_info(group_id);
         let cycle5_held = dispatcher.get_held_payouts(group_id);
-        println!("After cycle 5 - Payout order: {}, Held: {}", cycle5_info.payout_order, cycle5_held);
+        println!(
+            "After cycle 5 - Payout order: {}, Held: {}", cycle5_info.payout_order, cycle5_held,
+        );
 
         // All four users should be able to claim (User2, User3, User4, User5)
         start_cheat_caller_address(contract_address, user2);
@@ -773,10 +781,14 @@ mod test_five_member_held_payouts {
         println!("- Cycle 2: User1 received payout (5000 tokens: current cycle only)");
         println!("- Cycle 3: No eligible recipients, 2 held payouts accumulated");
         println!("- Cycle 4: No eligible recipients, 3 held payouts accumulated");
-        println!("- Cycle 5: User2, User3, User4, and User5 received payouts (20000 tokens: 3 held + 1 current)");
+        println!(
+            "- Cycle 5: User2, User3, User4, and User5 received payouts (20000 tokens: 3 held + 1 current)",
+        );
         println!("- Maximum held payout accumulation and distribution achieved!");
         println!("- All 4 remaining members paid simultaneously in cycle 5");
-        println!("- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)");
+        println!(
+            "- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)",
+        );
     }
 
     #[test]
@@ -791,7 +803,7 @@ mod test_five_member_held_payouts {
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
         let user5: ContractAddress = contract_address_const::<6>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -1053,7 +1065,9 @@ mod test_five_member_held_payouts {
 
         let cycle5_info = dispatcher.get_group_info(group_id);
         let cycle5_held = dispatcher.get_held_payouts(group_id);
-        println!("After cycle 5 - Payout order: {}, Held: {}", cycle5_info.payout_order, cycle5_held);
+        println!(
+            "After cycle 5 - Payout order: {}, Held: {}", cycle5_info.payout_order, cycle5_held,
+        );
 
         // All five users should be able to claim (User1, User2, User3, User4, User5)
         start_cheat_caller_address(contract_address, user1);
@@ -1119,6 +1133,8 @@ mod test_five_member_held_payouts {
         println!("- Ultimate held payout accumulation and distribution achieved!");
         println!("- All members with same lock amounts paid by join order priority");
         println!("- Perfect fund utilization: 25000 tokens distributed in single cycle");
-        println!("- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)");
+        println!(
+            "- Total funds distributed: 25000 tokens across 5 cycles (5 recipients x 5000 each)",
+        );
     }
 }

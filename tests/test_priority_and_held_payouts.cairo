@@ -7,8 +7,8 @@ mod test_priority_and_held_payouts {
     use save_circle::enums::Enums::{LockType, TimeUnit};
     use save_circle::interfaces::Isavecircle::{IsavecircleDispatcher, IsavecircleDispatcherTrait};
     use snforge_std::{
-        ContractClassTrait, DeclareResultTrait, start_cheat_caller_address, stop_cheat_caller_address,
-        declare,
+        ContractClassTrait, DeclareResultTrait, declare, start_cheat_caller_address,
+        stop_cheat_caller_address,
     };
     use starknet::{ContractAddress, contract_address_const};
 
@@ -100,7 +100,7 @@ mod test_priority_and_held_payouts {
         let user2: ContractAddress = contract_address_const::<3>();
         let user3: ContractAddress = contract_address_const::<4>();
         let user4: ContractAddress = contract_address_const::<5>();
-        
+
         let contribution_amount = 1000_u256;
         let token_amount = 100000_u256;
 
@@ -109,7 +109,8 @@ mod test_priority_and_held_payouts {
             contract_address, token_address, owner, user1, contribution_amount, token_amount,
         );
 
-        // Setup additional users and add them to the group (in specific order for timestamp testing)
+        // Setup additional users and add them to the group (in specific order for timestamp
+        // testing)
         start_cheat_caller_address(contract_address, user2);
         dispatcher.register_user("User2", "avatar2.png");
         dispatcher.join_group(group_id);
@@ -245,7 +246,9 @@ mod test_priority_and_held_payouts {
 
         let cycle3_info = dispatcher.get_group_info(group_id);
         let cycle3_held = dispatcher.get_held_payouts(group_id);
-        println!("After cycle 3 - Payout order: {}, Held: {}", cycle3_info.payout_order, cycle3_held);
+        println!(
+            "After cycle 3 - Payout order: {}, Held: {}", cycle3_info.payout_order, cycle3_held,
+        );
 
         // Both should be able to claim
         start_cheat_caller_address(contract_address, user2);
@@ -317,7 +320,9 @@ mod test_priority_and_held_payouts {
 
         let cycle4_info = dispatcher.get_group_info(group_id);
         let cycle4_held = dispatcher.get_held_payouts(group_id);
-        println!("After cycle 4 - Payout order: {}, Held: {}", cycle4_info.payout_order, cycle4_held);
+        println!(
+            "After cycle 4 - Payout order: {}, Held: {}", cycle4_info.payout_order, cycle4_held,
+        );
 
         // Both User1 and User4 should be able to claim
         start_cheat_caller_address(contract_address, user1);
@@ -352,6 +357,8 @@ mod test_priority_and_held_payouts {
         println!("- Cycle 4: User1 and User4 received payouts (8000 tokens: 1 current + 1 held)");
         println!("- Priority correctly determined by join order for same lock amounts");
         println!("- Correct fund management: current cycle funds used first, then held payouts");
-        println!("- Total funds distributed: 16000 tokens across 4 cycles (4 recipients x 4000 each)");
+        println!(
+            "- Total funds distributed: 16000 tokens across 4 cycles (4 recipients x 4000 each)",
+        );
     }
 }

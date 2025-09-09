@@ -227,7 +227,6 @@ fn setup_group_with_contributions(
 //         );
 // }
 
-
 #[test]
 #[should_panic(expected: ('Group must be active',))]
 fn test_distribute_payout_inactive_group() {
@@ -483,7 +482,6 @@ fn setup_group_with_different_lock_amounts(
 
     group_id
 }
-
 // #[test]
 // fn test_group_with_different_locks_no_early_payout() {
 //     let (contract_address, owner, token_address) = setup();
@@ -609,7 +607,5 @@ fn setup_group_with_different_lock_amounts(
 //     let final_member = dispatcher.get_group_member(group_id, member_index);
 //     assert(final_member.has_been_paid == true, 'Member should be marked as paid');
 // }
-
-
 
 

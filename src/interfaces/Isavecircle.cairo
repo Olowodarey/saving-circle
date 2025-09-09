@@ -55,7 +55,6 @@ pub trait Isavecircle<TContractState> {
     ) -> Array<UserGroupDetails>;
 
 
-
     fn get_user_statistics(self: @TContractState, user_address: ContractAddress) -> UserStatistics;
 
     fn is_group_member(self: @TContractState, group_id: u256, user: ContractAddress) -> bool;
@@ -75,7 +74,9 @@ pub trait Isavecircle<TContractState> {
     fn distribute_payout(ref self: TContractState, group_id: u256) -> bool;
     fn withdraw_payout(ref self: TContractState) -> u256;
     fn get_pending_payout(self: @TContractState, user_address: ContractAddress) -> u256;
-    fn get_user_withdrawal_info(self: @TContractState, user_address: ContractAddress) -> (u256, u256, u256);
+    fn get_user_withdrawal_info(
+        self: @TContractState, user_address: ContractAddress,
+    ) -> (u256, u256, u256);
     fn get_next_payout_recipient(self: @TContractState, group_id: u256) -> GroupMember;
     fn get_payout_order(self: @TContractState, group_id: u256) -> Array<ContractAddress>;
     fn admin_withdraw_from_pool(
@@ -92,7 +93,7 @@ pub trait Isavecircle<TContractState> {
     fn get_contribution_deadline(
         self: @TContractState, group_id: u256, user: ContractAddress,
     ) -> u64;
- 
+
 
     fn get_deadline_info(
         self: @TContractState, group_id: u256, user: ContractAddress,
@@ -112,21 +113,23 @@ pub trait Isavecircle<TContractState> {
     fn admin_contribute_from_lock(
         ref self: TContractState, group_id: u256, user: ContractAddress,
     ) -> bool;
-    
+
     // Cycle tracking getter functions
     fn get_current_cycle(self: @TContractState, group_id: u256) -> u64;
-    fn get_current_cycle_contributors(self: @TContractState, group_id: u256) -> Array<ContractAddress>;
+    fn get_current_cycle_contributors(
+        self: @TContractState, group_id: u256,
+    ) -> Array<ContractAddress>;
     fn get_group_total_contributions(
         self: @TContractState, group_id: u256,
     ) -> (u256, u256, Array<(ContractAddress, u256)>);
     fn get_held_payouts(self: @TContractState, group_id: u256) -> u32;
-    
+
     // Final pool distribution function
     fn distribute_final_pool(ref self: TContractState, group_id: u256) -> bool;
-    
+
     // Admin function to mark group as completed (enables lock withdrawals)
     fn mark_group_completed(ref self: TContractState, group_id: u256) -> bool;
-    
+
     // Check if admin has marked group as completed
     fn is_group_admin_completed(self: @TContractState, group_id: u256) -> bool;
 }

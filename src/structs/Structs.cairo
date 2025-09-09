@@ -20,7 +20,7 @@ pub struct UserProfile {
     pub total_payments: u32,
     pub payment_rate: u256,
     pub average_contribution: u256,
-    pub pending_payouts: u256, // Amount user can withdraw from their profile
+    pub pending_payouts: u256 // Amount user can withdraw from their profile
 }
 
 #[derive(Drop, Serde, starknet::Store)]
