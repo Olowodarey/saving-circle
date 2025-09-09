@@ -77,7 +77,6 @@ pub trait Isavecircle<TContractState> {
     fn get_user_withdrawal_info(
         self: @TContractState, user_address: ContractAddress,
     ) -> (u256, u256, u256);
-    fn get_next_payout_recipient(self: @TContractState, group_id: u256) -> GroupMember;
     fn get_payout_order(self: @TContractState, group_id: u256) -> Array<ContractAddress>;
     fn admin_withdraw_from_pool(
         ref self: TContractState, group_id: u256, amount: u256, recipient: ContractAddress,
@@ -87,9 +86,7 @@ pub trait Isavecircle<TContractState> {
     fn get_group_locked_funds(
         self: @TContractState, group_id: u256,
     ) -> (u256, Array<(ContractAddress, u256)>);
-    fn get_cycle_contributors(
-        self: @TContractState, group_id: u256, cycle: u64,
-    ) -> (u256, Array<(ContractAddress, u256)>);
+
     fn get_contribution_deadline(
         self: @TContractState, group_id: u256, user: ContractAddress,
     ) -> u64;
@@ -98,9 +95,7 @@ pub trait Isavecircle<TContractState> {
     fn get_deadline_info(
         self: @TContractState, group_id: u256, user: ContractAddress,
     ) -> (u64, u64, u256, bool);
-    fn track_missed_deadline_penalty(
-        ref self: TContractState, group_id: u256, user: ContractAddress, penalty_amount: u256,
-    ) -> bool;
+
     fn check_and_apply_deadline_penalty(
         ref self: TContractState, group_id: u256, user: ContractAddress,
     ) -> u256;
@@ -116,12 +111,8 @@ pub trait Isavecircle<TContractState> {
 
     // Cycle tracking getter functions
     fn get_current_cycle(self: @TContractState, group_id: u256) -> u64;
-    fn get_current_cycle_contributors(
-        self: @TContractState, group_id: u256,
-    ) -> Array<ContractAddress>;
-    fn get_group_total_contributions(
-        self: @TContractState, group_id: u256,
-    ) -> (u256, u256, Array<(ContractAddress, u256)>);
+
+
     fn get_held_payouts(self: @TContractState, group_id: u256) -> u32;
 
     // Final pool distribution function

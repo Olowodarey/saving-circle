@@ -113,8 +113,6 @@ pub struct ProfileViewData {
 pub struct UserGroupDetails {
     pub group_info: GroupInfo,
     pub member_data: GroupMember,
-    pub next_payout_date: u64,
-    pub position_in_queue: u32,
     pub total_contributed_so_far: u256,
     pub expected_payout_amount: u256,
 }

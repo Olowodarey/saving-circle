@@ -787,14 +787,15 @@ pub mod SaveCircle {
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
 
             // Calculate cycle end time
-            let cycle_duration_seconds = match group_info.cycle_unit {
-                TimeUnit::Hours => group_info.cycle_duration * 3600, // 1 * 60 * 60
-                TimeUnit::Days => group_info.cycle_duration * 86400, // 24 * 60 * 60
-                TimeUnit::Weeks => group_info.cycle_duration * 604800, // 7 * 24 * 60 * 60
-                TimeUnit::Months => group_info.cycle_duration
-                    * 2592000 // 30 * 24 * 60 * 60 (approximate)
-            };
-            let cycle_end_time = group_info.start_time + cycle_duration_seconds;
+            // let cycle_duration_seconds = match group_info.cycle_unit {
+            //     TimeUnit::Hours => group_info.cycle_duration * 3600, // 1 * 60 * 60
+            //     TimeUnit::Days => group_info.cycle_duration * 86400, // 24 * 60 * 60
+            //     TimeUnit::Weeks => group_info.cycle_duration * 604800, // 7 * 24 * 60 * 60
+            //     TimeUnit::Months => group_info.cycle_duration
+            //         * 2592000 // 30 * 24 * 60 * 60 (approximate)
+            // };
+
+            // let cycle_end_time = group_info.start_time + cycle_duration_seconds;
 
             // Ensure cycle has ended  will be enable back in full production
             // assert(current_time >= cycle_end_time, Errors::GROUP_CYCLE_NOT_ENDED);
@@ -1127,7 +1128,6 @@ pub mod SaveCircle {
                 return true;
             }
 
-            // Each recipient gets the full cycle's contributions (4000 tokens)
             // This is the standard savings circle model where each person gets the full pot
             let payout_per_recipient = current_cycle_contributions;
 
@@ -1473,8 +1473,6 @@ pub mod SaveCircle {
                 let group_details = UserGroupDetails {
                     group_info: group_info.clone(),
                     member_data: member_data,
-                    next_payout_date: self._calculate_next_payout_date(group_id),
-                    position_in_queue: self._get_position_in_payout_queue(group_id, user_address),
                     total_contributed_so_far: member_data.total_contributed,
                     expected_payout_amount: group_info.contribution_amount
                         * group_info.member_limit.into(),
@@ -1532,46 +1530,9 @@ pub mod SaveCircle {
             group_info.current_cycle
         }
 
-        fn get_current_cycle_contributors(
-            self: @ContractState, group_id: u256,
-        ) -> Array<ContractAddress> {
-            // Use the unified function and extract just the addresses
-            let (_, contributors_with_amounts) = self
-                .get_cycle_contributors(group_id, self.get_current_cycle(group_id));
-            let mut contributors = ArrayTrait::new();
-
-            let mut i = 0;
-            while i < contributors_with_amounts.len() {
-                let (contributor_address, _) = *contributors_with_amounts.at(i);
-                contributors.append(contributor_address);
-                i += 1;
-            }
-
-            contributors
-        }
-
-        fn get_group_total_contributions(
-            self: @ContractState, group_id: u256,
-        ) -> (u256, u256, Array<(ContractAddress, u256)>) {
-            // Verify group exists
-            let group_info = self.groups.read(group_id);
-            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
-
-            // Use helper function to get member contributions efficiently
-            let (total_contributions, member_contributions) = self
-                ._get_member_contributions_summary(group_id);
-
-            // Return: (total_contributions, remaining_pool_amount, individual_contributions)
-            // remaining_pool_amount shows what's available for payouts/carry-overs
-            (total_contributions, group_info.remaining_pool_amount, member_contributions)
-        }
 
         fn get_held_payouts(self: @ContractState, group_id: u256) -> u32 {
             self.held_payouts.read(group_id)
-        }
-
-        fn get_next_payout_recipient(self: @ContractState, group_id: u256) -> GroupMember {
-            self._get_next_payout_recipient(group_id)
         }
 
 
@@ -1674,13 +1635,6 @@ pub mod SaveCircle {
         }
 
 
-        fn track_missed_deadline_penalty(
-            ref self: ContractState, group_id: u256, user: ContractAddress, penalty_amount: u256,
-        ) -> bool {
-            self.missed_deadline_penalties.write((group_id, user), penalty_amount);
-            true
-        }
-
         fn get_group_locked_funds(
             self: @ContractState, group_id: u256,
         ) -> (u256, Array<(ContractAddress, u256)>) {
@@ -1710,40 +1664,6 @@ pub mod SaveCircle {
             (total_locked_funds, member_locked_funds)
         }
 
-        fn get_cycle_contributors(
-            self: @ContractState, group_id: u256, cycle: u64,
-        ) -> (u256, Array<(ContractAddress, u256)>) {
-            // Verify group exists
-            let group_info = self.groups.read(group_id);
-            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
-
-            let mut total_cycle_contributions = 0_u256;
-            let mut cycle_contributors = ArrayTrait::new();
-            let total_members = group_info.members;
-
-            // Iterate through all members to check who contributed in the specified cycle
-            let mut i = 0_u32;
-            while i < total_members {
-                let group_member = self.group_members.read((group_id, i));
-                if group_member.user != contract_address_const::<0>() {
-                    // Get contribution record from the comprehensive tracking system
-                    let contribution_record = self
-                        .contribution_records
-                        .read((group_id, group_member.user, cycle));
-
-                    // Check if this member has a valid contribution record for this cycle
-                    if contribution_record.contributor == group_member.user
-                        && contribution_record.amount > 0 {
-                        // Use the actual contribution amount from the record
-                        total_cycle_contributions += contribution_record.amount;
-                        cycle_contributors.append((group_member.user, contribution_record.amount));
-                    }
-                }
-                i += 1;
-            }
-
-            (total_cycle_contributions, cycle_contributors)
-        }
 
         // Consolidated deadline information function (replaces 3 redundant functions)
         fn get_deadline_info(
@@ -1944,112 +1864,6 @@ pub mod SaveCircle {
         }
 
 
-        fn _sort_members_by_priority(
-            self: @ContractState, group_id: u256, members: Array<ContractAddress>,
-        ) -> Array<ContractAddress> {
-            let mut sorted = ArrayTrait::new();
-            let mut remaining = members;
-
-            // Simple bubble sort implementation for priority ordering
-            while remaining.len() > 0 {
-                let mut best_index = 0;
-                let mut best_member = *remaining.at(0);
-                let best_member_index = self.user_joined_groups.read((best_member, group_id));
-                let mut best_member_data = self.group_members.read((group_id, best_member_index));
-                let mut best_lock_balance = self.group_lock.read((group_id, best_member));
-
-                let mut i = 1;
-                while i < remaining.len() {
-                    let current_member = *remaining.at(i);
-                    let current_member_index = self
-                        .user_joined_groups
-                        .read((current_member, group_id));
-                    let current_member_data = self
-                        .group_members
-                        .read((group_id, current_member_index));
-                    let current_lock_balance = self.group_lock.read((group_id, current_member));
-
-                    // Compare: higher lock balance wins, if tie then earlier join order wins
-                    if current_lock_balance > best_lock_balance
-                        || (current_lock_balance == best_lock_balance
-                            && current_member_data.member_index < best_member_data.member_index) {
-                        best_index = i;
-                        best_member = current_member;
-                        best_member_data = current_member_data;
-                        best_lock_balance = current_lock_balance;
-                    }
-                    i += 1;
-                }
-
-                sorted.append(best_member);
-
-                // Remove the selected member from remaining
-                let mut new_remaining = ArrayTrait::new();
-                let mut j = 0;
-                while j < remaining.len() {
-                    if j != best_index {
-                        new_remaining.append(*remaining.at(j));
-                    }
-                    j += 1;
-                }
-                remaining = new_remaining;
-            }
-
-            sorted
-        }
-
-        fn _get_next_payout_recipient(self: @ContractState, group_id: u256) -> GroupMember {
-            let group_info = self.groups.read(group_id);
-            let current_cycle = group_info.current_cycle;
-
-            let mut best_member = GroupMember {
-                user: contract_address_const::<0>(),
-                group_id: 0,
-                locked_amount: 0,
-                joined_at: 0,
-                member_index: 0,
-                payout_cycle: 0,
-                has_been_paid: false,
-                contribution_count: 0,
-                late_contributions: 0,
-                missed_contributions: 0,
-                total_contributed: 0,
-                total_recieved: 0,
-                is_active: true,
-            };
-            let mut found_eligible = false;
-
-            let mut i = 0;
-            while i < group_info.members {
-                let member = self.group_members.read((group_id, i));
-                if member.user != contract_address_const::<0>() && !member.has_been_paid {
-                    // Check if this member is qualified for payout
-                    if self._is_qualified_for_payout(group_id, member.user) {
-                        // Get actual locked balance from group_lock mapping
-                        let lock_balance = self.group_lock.read((group_id, member.user));
-
-                        if !found_eligible {
-                            best_member = member;
-                            found_eligible = true;
-                        } else if lock_balance > self
-                            .group_lock
-                            .read((group_id, best_member.user)) {
-                            // Compare priority: higher locked amount wins
-                            best_member = member;
-                        } else if lock_balance == self.group_lock.read((group_id, best_member.user))
-                            && member.member_index < best_member.member_index {
-                            // If locked amounts are equal, earlier join order wins
-                            best_member = member;
-                        }
-                    }
-                }
-                i += 1;
-            }
-
-            assert(found_eligible, Errors::NO_ELIGIBLE_MEMBER_FOUND);
-            best_member
-        }
-
         fn _calculate_total_contributions(self: @ContractState, group_id: u256) -> u256 {
             let group_info = self.groups.read(group_id);
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
@@ -2083,24 +1897,35 @@ pub mod SaveCircle {
         fn _is_qualified_for_payout(
             self: @ContractState, group_id: u256, user: ContractAddress,
         ) -> bool {
-            // For testing purposes, we can make this restrictive to test the "no eligible
-            // recipients" scenario This function determines who qualifies for payout based on their
-            // locked funds
+            // Dynamic eligibility based on cycles remaining in the group
+            // User needs enough locked funds to cover remaining cycles
 
             let current_locked_balance = self.group_lock.read((group_id, user));
             let group_info = self.groups.read(group_id);
 
-            // Calculate a high requirement to test "no eligible recipients" scenario
+            // Calculate cycles remaining in the group
+            // total_cycles is the member_limit (each member gets one payout)
+            let total_cycles = group_info.member_limit.into();
+            let current_cycle = group_info.current_cycle;
+
+            // Calculate cycles left (including current cycle)
+            let cycles_remaining = if total_cycles > current_cycle {
+                total_cycles - current_cycle
+            } else {
+                1_u64 // At least require 1 cycle worth
+            };
+
+            // Calculate cost per contribution (contribution + insurance fee)
             let contribution_amount = group_info.contribution_amount;
             let insurance_rate = self.insurance_rate.read();
             let insurance_fee_per_contribution = (contribution_amount * insurance_rate) / 10000;
             let cost_per_contribution = contribution_amount + insurance_fee_per_contribution;
 
-            // Require 5 cycles worth of locked funds (very high requirement)
-            let required_cycles = 5_u256;
-            let minimum_required = cost_per_contribution * required_cycles;
+            // Require locked funds = cycles_remaining * contribution_amount
+            // This ensures user can contribute for all remaining cycles
+            let minimum_required = cycles_remaining.into() * cost_per_contribution;
 
-            // Only qualify if they have locked significantly more than required
+            // User qualifies if they have enough locked funds for remaining cycles
             current_locked_balance >= minimum_required
         }
 
@@ -2205,7 +2030,6 @@ pub mod SaveCircle {
             false
         }
 
-        // New internal functions from modified version
         fn _record_activity(
             ref self: ContractState,
             user: ContractAddress,
@@ -2232,31 +2056,6 @@ pub mod SaveCircle {
             self.user_activities.write((user, user_activity_count), activity);
             self.user_activity_count.write(user, user_activity_count + 1);
             self.next_activity_id.write(activity_id + 1);
-        }
-
-        fn _calculate_next_payout_date(self: @ContractState, group_id: u256) -> u64 {
-            let group_info = self.groups.read(group_id);
-            // Simple calculation - add cycle_duration to last_payout_time or start_time
-            if group_info.last_payout_time > 0 {
-                group_info.last_payout_time + group_info.cycle_duration
-            } else {
-                group_info.start_time + group_info.cycle_duration
-            }
-        }
-
-        fn _get_position_in_payout_queue(
-            self: @ContractState, group_id: u256, user: ContractAddress,
-        ) -> u32 {
-            let member_index = self.user_joined_groups.read((user, group_id));
-            let group_info = self.groups.read(group_id);
-
-            // Simple queue position based on join order and current cycle
-            if member_index >= group_info.current_cycle.try_into().unwrap() {
-                member_index - group_info.current_cycle.try_into().unwrap()
-            } else {
-                (group_info.member_limit - group_info.current_cycle.try_into().unwrap())
-                    + member_index
-            }
         }
 
         fn _reset_cycle_contributions(ref self: ContractState, group_id: u256, new_cycle: u256) {
@@ -2300,63 +2099,10 @@ pub mod SaveCircle {
             };
         }
 
-        // ============ COMPREHENSIVE CONTRIBUTION TRACKING FUNCTIONS ============
-
-        // Get detailed contribution record for a specific user and cycle
-        fn get_contribution_record(
-            self: @ContractState, group_id: u256, user_address: ContractAddress, cycle: u64,
-        ) -> ContributionRecord {
-            self.contribution_records.read((group_id, user_address, cycle))
-        }
-
-        // Get cycle statistics (total contributions and contributor count)
-        fn get_cycle_stats(self: @ContractState, group_id: u256, cycle: u64) -> (u256, u32) {
-            let total_contributions = self.cycle_total_contributions.read((group_id, cycle));
-            let contributors_count = self.cycle_contributors_count.read((group_id, cycle));
-            (total_contributions, contributors_count)
-        }
-
-        // Check if a user has contributed to a specific cycle (using new system)
-        fn has_user_contributed_to_cycle(
-            self: @ContractState, group_id: u256, user_address: ContractAddress, cycle: u64,
-        ) -> bool {
-            let contribution_record = self
-                .contribution_records
-                .read((group_id, user_address, cycle));
-            contribution_record.contributor == user_address && contribution_record.amount > 0
-        }
-
         fn get_user_payout_amount(
             self: @ContractState, group_id: u256, user: ContractAddress,
         ) -> u256 {
             self.user_payout_amounts.read((group_id, user))
-        }
-
-
-        // Helper function to get member contributions summary (eliminates code duplication)
-        fn _get_member_contributions_summary(
-            self: @ContractState, group_id: u256,
-        ) -> (u256, Array<(ContractAddress, u256)>) {
-            let group_info = self.groups.read(group_id);
-            let mut total_contributions = 0_u256;
-            let mut member_contributions = ArrayTrait::new();
-            let total_members = group_info.members;
-
-            // Iterate through all members to get their total contributions
-            let mut i = 0_u32;
-            while i < total_members {
-                let group_member = self.group_members.read((group_id, i));
-                if group_member.user != contract_address_const::<0>() {
-                    let member_total_contributed = group_member.total_contributed;
-                    if member_total_contributed > 0 {
-                        total_contributions += member_total_contributed;
-                        member_contributions.append((group_member.user, member_total_contributed));
-                    }
-                }
-                i += 1;
-            }
-
-            (total_contributions, member_contributions)
         }
     }
 }
