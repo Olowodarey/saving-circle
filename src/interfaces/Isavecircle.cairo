@@ -105,9 +105,7 @@ pub trait Isavecircle<TContractState> {
         ref self: TContractState, group_id: u256, member_address: ContractAddress,
     ) -> bool;
     fn add_admin(ref self: TContractState, new_admin: ContractAddress) -> bool;
-    fn admin_contribute_from_lock(
-        ref self: TContractState, group_id: u256, user: ContractAddress,
-    ) -> bool;
+
 
     // Cycle tracking getter functions
     fn get_current_cycle(self: @TContractState, group_id: u256) -> u64;

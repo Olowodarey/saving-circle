@@ -384,7 +384,7 @@ mod test_5_cycle_held_payouts {
         assert(cycle5_held == 0, 'All held payouts cleared');
         assert(cycle5_info.current_cycle >= 4, 'Should be at least cycle 4');
 
-          // === FINAL VERIFICATION ===
+        // === FINAL VERIFICATION ===
         println!("\n=== FINAL VERIFICATION ===");
 
         // Verify all users have been paid

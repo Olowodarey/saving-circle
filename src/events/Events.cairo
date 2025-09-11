@@ -35,6 +35,15 @@ pub struct UserJoinedGroup {
 }
 
 #[derive(Drop, starknet::Event)]
+pub struct LiquidityLocked {
+    pub group_id: u256,
+    pub user: ContractAddress,
+    pub amount: u256,
+    pub token_address: ContractAddress,
+    pub total_locked: u256,
+}
+
+#[derive(Drop, starknet::Event)]
 pub struct FundsWithdrawn {
     pub group_id: u256,
     pub user: ContractAddress,

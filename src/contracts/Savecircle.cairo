@@ -15,8 +15,8 @@ pub mod SaveCircle {
     use save_circle::base::errors::Errors;
     use save_circle::enums::Enums::{ActivityType, GroupState, GroupVisibility, LockType, TimeUnit};
     use save_circle::events::Events::{
-        AdminPoolWithdrawal, ContributionMade, FundsWithdrawn, GroupCreated, PayoutDistributed,
-        PayoutSent, UserJoinedGroup, UserRegistered, UsersInvited,
+        AdminPoolWithdrawal, ContributionMade, FundsWithdrawn, GroupCreated, LiquidityLocked,
+        PayoutDistributed, PayoutSent, UserJoinedGroup, UserRegistered, UsersInvited,
     };
     use save_circle::interfaces::Isavecircle::Isavecircle;
     use save_circle::structs::Structs::{
@@ -145,6 +145,7 @@ pub mod SaveCircle {
         GroupCreated: GroupCreated,
         UsersInvited: UsersInvited,
         UserJoinedGroup: UserJoinedGroup,
+        LiquidityLocked: LiquidityLocked,
         FundsWithdrawn: FundsWithdrawn,
         ContributionMade: ContributionMade,
         PayoutDistributed: PayoutDistributed,
@@ -200,99 +201,6 @@ pub mod SaveCircle {
             return true;
         }
 
-        fn admin_contribute_from_lock(
-            ref self: ContractState, group_id: u256, user: ContractAddress,
-        ) -> bool {
-            // Only admin can call this function
-            self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
-
-            // Check if contract is paused
-            self.pausable.assert_not_paused();
-
-            // Verify user is a member of this group
-            assert(self._is_member(group_id, user), Errors::USER_NOT_MEMBER);
-
-            // Get group information
-            let group_info = self.groups.read(group_id);
-            assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
-            assert(group_info.state == GroupState::Active, Errors::GROUP_MUST_BE_ACTIVE);
-
-            // Check if user has already contributed in the current cycle
-            let current_cycle = group_info.current_cycle;
-            let has_contributed_this_cycle = self
-                .user_cycle_contributions
-                .read((group_id, user, current_cycle));
-            assert(!has_contributed_this_cycle, Errors::ALREADY_CONTRIBUTED_THIS_CYCLE);
-
-            // Check if user has sufficient locked liquidity for this group
-            let user_locked_amount = self.group_lock.read((group_id, user));
-            let contribution_amount = group_info.contribution_amount;
-            let insurance_rate = self.insurance_rate.read();
-            let insurance_fee = (contribution_amount * insurance_rate)
-                / 10000; // 1% = 100 basis points
-
-            // Check for missed deadline penalty
-            let deadline_penalty = self.check_and_apply_deadline_penalty(group_id, user);
-
-            let total_required = contribution_amount + insurance_fee + deadline_penalty;
-            assert(user_locked_amount >= total_required, Errors::INSUFFICIENT_LOCKED_FUNDS);
-
-            // Get user's member information
-            let member_index = self.user_joined_groups.read((user, group_id));
-            let mut group_member = self.group_members.read((group_id, member_index));
-
-            // Deduct from user's locked liquidity
-            let new_locked_amount = user_locked_amount - total_required;
-            self.group_lock.write((group_id, user), new_locked_amount);
-
-            // Update user's total locked balance
-            let current_total_locked = self.locked_balance.read(user);
-            self.locked_balance.write(user, current_total_locked - total_required);
-
-            // Update user's profile total lock amount
-            let mut user_profile = self.user_profiles.read(user);
-            user_profile.total_lock_amount -= total_required;
-            self.user_profiles.write(user, user_profile);
-
-            // Add insurance fee and penalty to group's insurance pool
-            let current_pool = self.insurance_pool.read(group_id);
-            self.insurance_pool.write(group_id, current_pool + insurance_fee + deadline_penalty);
-
-            // Update member's contribution count and total contributed
-            group_member.contribution_count += 1;
-            group_member.total_contributed += contribution_amount;
-            self.group_members.write((group_id, member_index), group_member);
-
-            // Mark user as having contributed this cycle
-            self.user_cycle_contributions.write((group_id, user, current_cycle), true);
-
-            // Record activity
-            self
-                ._record_activity(
-                    user,
-                    ActivityType::Contribution,
-                    "Admin made contribution from locked funds",
-                    contribution_amount,
-                    Option::Some(group_id),
-                    true,
-                );
-
-            // Emit contribution event
-            self
-                .emit(
-                    Event::ContributionMade(
-                        ContributionMade {
-                            group_id,
-                            user,
-                            contribution_amount,
-                            insurance_fee,
-                            total_paid: total_required,
-                        },
-                    ),
-                );
-
-            true
-        }
 
         fn register_user(ref self: ContractState, name: ByteArray, avatar: ByteArray) -> bool {
             let caller = get_caller_address();
@@ -765,6 +673,18 @@ pub mod SaveCircle {
             user_profile.total_lock_amount += amount;
             self.user_profiles.write(caller, user_profile);
 
+            // Emit liquidity locked event
+            self
+                .emit(
+                    LiquidityLocked {
+                        group_id,
+                        user: caller,
+                        amount,
+                        token_address,
+                        total_locked: new_group_lock,
+                    },
+                );
+
             true
         }
 
@@ -1066,11 +986,10 @@ pub mod SaveCircle {
             assert(group_info.group_id != 0, Errors::GROUP_DOES_NOT_EXIST);
             assert(group_info.state == GroupState::Active, Errors::GROUP_MUST_BE_ACTIVE);
 
-            
             self.accesscontrol.assert_only_role(DEFAULT_ADMIN_ROLE);
 
             // Check that all members have contributed for the current cycle using comprehensive
-        
+
             let current_cycle = group_info.current_cycle;
             let mut member_index: u32 = 0;
             while member_index < group_info.members {
@@ -1096,38 +1015,63 @@ pub mod SaveCircle {
                 ._calculate_current_cycle_contributions(group_id, current_cycle);
             assert(current_cycle_contributions > 0, Errors::NO_CONTRIBUTIONS_TO_DISTRIBUTE);
 
-            // Get all eligible recipients for this cycle
-            let eligible_recipients = self._get_all_eligible_recipients(group_id);
+            // Check if this is the final cycle
+            let is_final_cycle = group_info.current_cycle >= group_info.total_cycles.into();
+
+            // Get recipients based on whether it's the final cycle or not
+            let mut eligible_recipients = if is_final_cycle {
+                // FINAL CYCLE: Ignore eligibility requirements, pay ALL unpaid members
+                let mut unpaid_members = ArrayTrait::new();
+                let mut _member_index = 0_u32;
+                while _member_index < group_info.members {
+                    let member = self.group_members.read((group_id, _member_index));
+                    if !member.has_been_paid {
+                        unpaid_members.append(member.user);
+                    }
+                    _member_index += 1;
+                }
+                unpaid_members
+            } else {
+                // Regular cycle: Use normal eligibility checks
+                self._get_all_eligible_recipients(group_id)
+            };
 
             if eligible_recipients.len() == 0 {
-                // No eligible recipients - hold the payout and move to next cycle
-                let current_held_payouts = self.held_payouts.read(group_id);
-                self.held_payouts.write(group_id, current_held_payouts + 1);
+                if is_final_cycle {
+                    // Final cycle with no unpaid members - complete the group
+                    group_info.state = GroupState::Completed;
+                    group_info.completed_cycles = group_info.current_cycle.try_into().unwrap();
+                    self.groups.write(group_id, group_info);
+                    return true;
+                } else {
+                    // Not final cycle - hold the payout and move to next cycle
+                    let current_held_payouts = self.held_payouts.read(group_id);
+                    self.held_payouts.write(group_id, current_held_payouts + 1);
 
-                // Add current cycle contributions to the held pool
-                group_info.remaining_pool_amount += current_cycle_contributions;
+                    // Add current cycle contributions to the held pool
+                    group_info.remaining_pool_amount += current_cycle_contributions;
 
-                // Move to next cycle without distributing payout
-                group_info.current_cycle += 1;
-                self._reset_cycle_contributions(group_id, group_info.current_cycle.into());
+                    // Move to next cycle without distributing payout
+                    group_info.current_cycle += 1;
+                    self._reset_cycle_contributions(group_id, group_info.current_cycle.into());
 
-                self.groups.write(group_id, group_info);
+                    self.groups.write(group_id, group_info);
 
-                // Emit event for held payout
-                self
-                    .emit(
-                        PayoutDistributed {
-                            group_id,
-                            recipient: contract_address_const::<0>(), // No recipient
-                            amount: current_cycle_contributions,
-                            cycle: current_cycle,
-                        },
-                    );
+                    // Emit event for held payout
+                    self
+                        .emit(
+                            PayoutDistributed {
+                                group_id,
+                                recipient: contract_address_const::<0>(), // No recipient
+                                amount: current_cycle_contributions,
+                                cycle: current_cycle,
+                            },
+                        );
 
-                return true;
+                    return true;
+                }
             }
 
-    
             let payout_per_recipient = current_cycle_contributions;
 
             // Calculate total available funds for payouts
@@ -1166,7 +1110,6 @@ pub mod SaveCircle {
                 member.total_recieved += payout_per_recipient;
                 self.group_members.write((group_id, member_index), member);
 
-            
                 self
                     .emit(
                         PayoutDistributed {
@@ -1202,7 +1145,10 @@ pub mod SaveCircle {
             // If no recipients were paid, held payouts remain unchanged (they accumulate)
 
             // CHECK FOR GROUP COMPLETION BEFORE INCREMENTING CYCLE
-            // Mark group as completed after a full rotation (all members have received payouts)
+            // Group should complete when either:
+            // 1. All members have received payouts, OR
+            // 2. The total_cycles limit has been reached
+
             let mut all_members_paid = true;
             let mut check_index = 0_u32;
             while check_index < group_info.members {
@@ -1214,8 +1160,13 @@ pub mod SaveCircle {
                 check_index += 1;
             }
 
-            if all_members_paid {
+            // Check if we've reached the cycle limit
+            let cycle_limit_reached = group_info.current_cycle >= group_info.total_cycles.into();
+
+            // Complete the group if either condition is met
+            if all_members_paid || cycle_limit_reached {
                 group_info.state = GroupState::Completed;
+                group_info.completed_cycles = group_info.current_cycle.try_into().unwrap();
                 self.groups.write(group_id, group_info);
                 return true;
             }
@@ -1915,7 +1866,7 @@ pub mod SaveCircle {
 
             // Require locked funds = cycles_remaining * contribution_amount
             // This ensures user can contribute for all remaining cycles
-            let minimum_required = cycles_remaining.into()  * cost_per_contribution;
+            let minimum_required = cycles_remaining.into() * cost_per_contribution;
 
             // User qualifies if they have enough locked funds for remaining cycles
             current_locked_balance >= minimum_required
