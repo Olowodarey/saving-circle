@@ -4,7 +4,7 @@ mod test_5_cycle_held_payouts {
     use core::traits::Into;
     use openzeppelin::token::erc20::interface::{IERC20Dispatcher, IERC20DispatcherTrait};
     use save_circle::contracts::Savecircle::SaveCircle;
-    use save_circle::enums::Enums::{LockType, TimeUnit};
+    use save_circle::enums::Enums::{GroupState, LockType, TimeUnit};
     use save_circle::interfaces::Isavecircle::{IsavecircleDispatcher, IsavecircleDispatcherTrait};
     use snforge_std::{
         ContractClassTrait, DeclareResultTrait, declare, start_cheat_block_timestamp,
@@ -345,11 +345,21 @@ mod test_5_cycle_held_payouts {
         let user4_initial_balance = token_dispatcher.balance_of(user4);
         let user5_initial_balance = token_dispatcher.balance_of(user5);
 
+        // check group state
+        let group_info = dispatcher.get_group_info(group_id);
+        assert(group_info.state == GroupState::Active, 'Group should be active');
+
         // Available funds: 1 held + 1 current = 2 payouts worth = 10000 tokens
         // Can pay both User4 and User5 (2 people)
         start_cheat_caller_address(contract_address, owner);
         dispatcher.distribute_payout(group_id);
         stop_cheat_caller_address(contract_address);
+
+        // check group state
+        let group_info = dispatcher.get_group_info(group_id);
+        assert(group_info.state == GroupState::Completed, 'Group should be completed');
+
+        
 
         let cycle5_held = dispatcher.get_held_payouts(group_id);
         let cycle5_info = dispatcher.get_group_info(group_id);

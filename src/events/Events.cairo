@@ -92,3 +92,26 @@ pub struct AdminPoolWithdrawal {
     pub recipient: ContractAddress,
     pub remaining_balance: u256,
 }
+
+#[derive(Drop, starknet::Event)]
+pub struct HeldPayoutPayed {
+    pub message: ByteArray,
+    pub data1: u256,
+    pub data2: u256,
+    pub data3: u256,
+}
+
+#[derive(Drop, starknet::Event)]
+pub struct CompletionCheck {
+    pub message: ByteArray,
+    pub data1: u256,
+    pub data2: u256,
+    pub data3: u256,
+}
+
+#[derive(Drop, starknet::Event)]
+pub struct GroupCompleted {
+    pub group_id: u256,
+    pub completed_cycles: u64,
+    pub timestamp: u64,
+}

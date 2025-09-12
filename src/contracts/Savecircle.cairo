@@ -15,8 +15,9 @@ pub mod SaveCircle {
     use save_circle::base::errors::Errors;
     use save_circle::enums::Enums::{ActivityType, GroupState, GroupVisibility, LockType, TimeUnit};
     use save_circle::events::Events::{
-        AdminPoolWithdrawal, ContributionMade, FundsWithdrawn, GroupCreated, LiquidityLocked,
-        PayoutDistributed, PayoutSent, UserJoinedGroup, UserRegistered, UsersInvited,
+        AdminPoolWithdrawal, CompletionCheck, ContributionMade, FundsWithdrawn, GroupCompleted,
+        GroupCreated, HeldPayoutPayed, LiquidityLocked, PayoutDistributed, PayoutSent,
+        UserJoinedGroup, UserRegistered, UsersInvited,
     };
     use save_circle::interfaces::Isavecircle::Isavecircle;
     use save_circle::structs::Structs::{
@@ -1020,16 +1021,37 @@ pub mod SaveCircle {
 
             // Get recipients based on whether it's the final cycle or not
             let mut eligible_recipients = if is_final_cycle {
-                // FINAL CYCLE: Ignore eligibility requirements, pay ALL unpaid members
+                // FINAL CYCLE: Pay ALL unpaid members regardless of eligibility
                 let mut unpaid_members = ArrayTrait::new();
                 let mut _member_index = 0_u32;
                 while _member_index < group_info.members {
                     let member = self.group_members.read((group_id, _member_index));
                     if !member.has_been_paid {
                         unpaid_members.append(member.user);
+                        
+                        // Log the unpaid member for debugging
+                        // self.emit(
+                        //     HeldPayoutPayed {
+                        //         message: 'Final cycle - unpaid member found'.into(),
+                        //         data1: member.user.into(),
+                        //         data2: 0,
+                        //         data3: 0,
+                        //     },
+                        // );
                     }
                     _member_index += 1;
                 }
+                
+                // Log the number of unpaid members found
+                // self.emit(
+                //     HeldPayoutPayed {
+                //         message: 'Final cycle - total unpaid members'.into(),
+                //         data1: unpaid_members.len().into(),
+                //         data2: 0,
+                //         data3: 0,
+                //     },
+                // );
+                
                 unpaid_members
             } else {
                 // Regular cycle: Use normal eligibility checks
@@ -1144,11 +1166,12 @@ pub mod SaveCircle {
             }
             // If no recipients were paid, held payouts remain unchanged (they accumulate)
 
-            // CHECK FOR GROUP COMPLETION BEFORE INCREMENTING CYCLE
+            // After distributing payouts, check if we should complete the group
             // Group should complete when either:
             // 1. All members have received payouts, OR
-            // 2. The total_cycles limit has been reached
+            // 2. We've reached the total_cycles limit
 
+            // First, check if all members have been paid
             let mut all_members_paid = true;
             let mut check_index = 0_u32;
             while check_index < group_info.members {
@@ -1160,13 +1183,35 @@ pub mod SaveCircle {
                 check_index += 1;
             }
 
-            // Check if we've reached the cycle limit
-            let cycle_limit_reached = group_info.current_cycle >= group_info.total_cycles.into();
+            // Check if we've reached the cycle limit (check if next cycle would exceed total_cycles)
+            let next_cycle = group_info.current_cycle + 1;
+            let cycle_limit_reached = next_cycle > group_info.total_cycles.into();
+
+            // Log completion check for debugging
+            // self.emit(
+            //     CompletionCheck {
+            //         message: 'Completion check'.into(),
+            //         data1: all_members_paid.into(),
+            //         data2: cycle_limit_reached.into(),
+            //         data3: group_info.current_cycle.into(),
+            //     },
+            // );
 
             // Complete the group if either condition is met
             if all_members_paid || cycle_limit_reached {
                 group_info.state = GroupState::Completed;
                 group_info.completed_cycles = group_info.current_cycle.try_into().unwrap();
+                group_info.is_active = false;
+                
+                // Log group completion
+                // self.emit(
+                //     GroupCompleted {
+                //         group_id,
+                //         completed_cycles: group_info.completed_cycles,
+                //         timestamp: get_block_timestamp(),
+                //     },
+                // );
+                
                 self.groups.write(group_id, group_info);
                 return true;
             }
